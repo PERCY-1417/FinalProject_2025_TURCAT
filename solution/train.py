@@ -2,6 +2,7 @@ import os
 import time
 import torch
 import argparse
+import numpy as np
 
 from model import SASRec
 from dataloader import (

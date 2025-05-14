@@ -11,9 +11,12 @@ NUM_VALID_ITEMS = 1
 NUM_TEST_ITEMS = 2 # Users will have 2 items in their test set
 K_EVAL = 10 # Evaluation cutoff for @K metrics
 
+DATA_PATH = "data/"
+DATA_PATH = "data_final_project/KuaiRec 2.0/sas_rec_data/"
+
 def build_index(dataset_name):
 
-    ui_mat = np.loadtxt('data/%s.txt' % dataset_name, dtype=np.int32)
+    ui_mat = np.loadtxt(DATA_PATH + '%s.txt' % dataset_name, dtype=np.int32)
 
     n_users = ui_mat[:, 0].max()
     n_items = ui_mat[:, 1].max()
@@ -129,7 +132,7 @@ def data_partition(fname):
     user_valid = {}
     user_test = {}
     # assume user/item index starting from 1
-    f = open('data/%s.txt' % fname, 'r')
+    f = open(DATA_PATH + '%s.txt' % fname, 'r')
     for line in f:
         u, i = line.rstrip().split(' ')
         u = int(u)
