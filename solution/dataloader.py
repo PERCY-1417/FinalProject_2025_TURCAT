@@ -1,4 +1,3 @@
-import os
 import sys
 import copy
 import torch
@@ -7,73 +6,26 @@ import numpy as np
 from collections import defaultdict
 from multiprocessing import Process, Queue
 
-def data_partition(data_dir):
-    user_train = {}
-    user_valid = {}
-    user_test = {}
+# Number of items for validation and test sets
+NUM_VALID_ITEMS = 1
+NUM_TEST_ITEMS = 2 # Users will have 2 items in their test set
+K_EVAL = 10 # Evaluation cutoff for @K metrics
 
-    def read_sequence(file_path):
-        with open(file_path, 'r') as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                user_part, items_part = line.strip().split('\t')
-                user_id = int(user_part)
-                items = [int(x) for x in items_part.split(',') if x]
-                yield user_id, items
+def build_index(dataset_name):
 
-    # Read train data
-    for user, items in read_sequence(os.path.join(data_dir, 'train.txt')):
-        user_train[user] = items
+    ui_mat = np.loadtxt('data/%s.txt' % dataset_name, dtype=np.int32)
 
-    # Read valid data
-    for user, items in read_sequence(os.path.join(data_dir, 'valid.txt')):
-        user_valid[user] = items
+    n_users = ui_mat[:, 0].max()
+    n_items = ui_mat[:, 1].max()
 
-    # Read test data
-    for user, items in read_sequence(os.path.join(data_dir, 'test.txt')):
-        user_test[user] = items
+    u2i_index = [[] for _ in range(n_users + 1)]
+    i2u_index = [[] for _ in range(n_items + 1)]
 
-    usernum = max(user_train.keys()) + 1
+    for ui_pair in ui_mat:
+        u2i_index[ui_pair[0]].append(ui_pair[1])
+        i2u_index[ui_pair[1]].append(ui_pair[0])
 
-    # Find max item ID across all sets
-    itemnum = 0
-    for dataset in (user_train, user_valid, user_test):
-        for items in dataset.values():
-            if items:
-                itemnum = max(itemnum, max(items))
-    itemnum += 1  # account for 0-padding
-
-    print(f"[data_partition] Users: {usernum}, Items: {itemnum}")
-    return user_train, user_valid, user_test, usernum, itemnum
-
-def build_index(data_dir):
-    file_path = os.path.join(data_dir, 'train.txt')
-    u2i_index = defaultdict(list)
-    i2u_index = defaultdict(list)
-
-    with open(file_path, 'r') as f:
-        for line in f:
-            if not line.strip():
-                continue
-            user_part, items_part = line.strip().split('\t')
-            user_id = int(user_part)
-            items = [int(x) for x in items_part.split(',') if x]
-            for item in items:
-                u2i_index[user_id].append(item)
-                i2u_index[item].append(user_id)
-
-    # Convert defaultdicts to lists for compatibility
-    max_user = max(u2i_index.keys())
-    max_item = max(i2u_index.keys())
-    u2i_list = [[] for _ in range(max_user + 1)]
-    i2u_list = [[] for _ in range(max_item + 1)]
-    for u, items in u2i_index.items():
-        u2i_list[u] = items
-    for i, users in i2u_index.items():
-        i2u_list[i] = users
-
-    return u2i_list, i2u_list
+    return u2i_index, i2u_index
 
 # sampler for batch generation
 def random_neq(l, r, s):
@@ -83,89 +35,62 @@ def random_neq(l, r, s):
     return t
 
 def sample_function(user_train, usernum, itemnum, batch_size, maxlen, result_queue, SEED):
+    # Define a function to sample a single user
     def sample(uid):
 
         # uid = np.random.randint(1, usernum + 1)
+        # Ensure the user has more than one interaction
         while len(user_train[uid]) <= 1: uid = np.random.randint(1, usernum + 1)
 
+        # Initialize numpy arrays for sequence, positive, and negative samples
         seq = np.zeros([maxlen], dtype=np.int32)
         pos = np.zeros([maxlen], dtype=np.int32)
         neg = np.zeros([maxlen], dtype=np.int32)
+        # The target item is the last item in the user's sequence
         nxt = user_train[uid][-1]
+        # Index for filling the sequence arrays, starting from the end
         idx = maxlen - 1
 
+        # Create a set of the user's interactions for negative sampling
         ts = set(user_train[uid])
+        # Iterate through the user's sequence in reverse order, excluding the last item
+        # The goal is to create a sequence of interactions, a positive sample (the next item), and a negative sample (an item the user didn't interact with) for each position in the sequence.
         for i in reversed(user_train[uid][:-1]):
+            # Store the item in the sequence
             seq[idx] = i
+            # Store the next item as the positive sample
             pos[idx] = nxt
+            # Sample a negative item if the next item is not padding (0)
             if nxt != 0: neg[idx] = random_neq(1, itemnum + 1, ts)
+            # Update the next item and index
             nxt = i
             idx -= 1
+            # Stop if the index reaches -1
             if idx == -1: break
 
+        # Return the user ID, sequence, positive samples, and negative samples
         return (uid, seq, pos, neg)
 
+    # Set the random seed for reproducibility
     np.random.seed(SEED)
-    uids = np.arange(usernum, dtype=np.int32)
+    # Create an array of user IDs
+    uids = np.arange(1, usernum+1, dtype=np.int32)
+    # Initialize a counter
     counter = 0
+    # Run indefinitely to generate batches
     while True:
+        # Shuffle user IDs every time the counter is a multiple of usernum
         if counter % usernum == 0:
             np.random.shuffle(uids)
+        # Initialize a list to store a batch of samples
         one_batch = []
+        # Generate a batch of samples
         for i in range(batch_size):
             one_batch.append(sample(uids[counter % usernum]))
             counter += 1
+        # Put the batch into the result queue
         result_queue.put(zip(*one_batch))
 
-# TODO: merge evaluate functions for test and val set
-# evaluate on test set
-def evaluate(model, dataset, args):
-    [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
-
-    NDCG = 0.0
-    HT = 0.0
-    valid_user = 0.0
-
-    if usernum > 10000:
-        users = random.sample(range(usernum), 10000)
-    else:
-        users = range(usernum)
-
-    for u in users:
-
-        if len(train[u]) < 1 or len(test[u]) < 1: continue
-
-        seq = np.zeros([args.maxlen], dtype=np.int32)
-        idx = args.maxlen - 1
-        seq[idx] = valid[u][0]
-        idx -= 1
-        for i in reversed(train[u]):
-            seq[idx] = i
-            idx -= 1
-            if idx == -1: break
-        rated = set(train[u])
-        rated.add(0)
-        item_idx = [test[u][0]]
-        for _ in range(100):
-            t = np.random.randint(1, itemnum)
-            while t in rated: t = np.random.randint(1, itemnum)
-            item_idx.append(t)
-
-        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], item_idx]])
-        predictions = predictions[0] # - for 1st argsort DESC
-
-        rank = predictions.argsort().argsort()[0].item()
-
-        valid_user += 1
-
-        if rank < 10:
-            NDCG += 1 / np.log2(rank + 2)
-            HT += 1
-        if valid_user % 100 == 0:
-            print('.', end="")
-            sys.stdout.flush()
-
-    return NDCG / valid_user, HT / valid_user
 
 class WarpSampler(object):
     def __init__(self, User, usernum, itemnum, batch_size=64, maxlen=10, n_workers=1):
@@ -185,6 +110,8 @@ class WarpSampler(object):
             self.processors[-1].start()
 
     def next_batch(self):
+        # print(f'running next_batch')
+        # print(f'self.result_queue: {self.result_queue}')
         return self.result_queue.get()
 
     def close(self):
@@ -192,47 +119,221 @@ class WarpSampler(object):
             p.terminate()
             p.join()
 
+
+# train/val/test data generation
+def data_partition(fname):
+    usernum = 0
+    itemnum = 0
+    User = defaultdict(list)
+    user_train = {}
+    user_valid = {}
+    user_test = {}
+    # assume user/item index starting from 1
+    f = open('data/%s.txt' % fname, 'r')
+    for line in f:
+        u, i = line.rstrip().split(' ')
+        u = int(u)
+        i = int(i)
+        usernum = max(u, usernum)
+        itemnum = max(i, itemnum)
+        User[u].append(i)
+
+    MIN_INTERACTIONS_FOR_FULL_SPLIT = 1 + NUM_VALID_ITEMS + NUM_TEST_ITEMS # Min 1 for train
+
+    for user in User:
+        nfeedback = len(User[user])
+        if nfeedback < MIN_INTERACTIONS_FOR_FULL_SPLIT:
+            # Not enough interactions for a full train/valid/test split according to NUM_VALID_ITEMS and NUM_TEST_ITEMS
+            # Fallback: use all for training, empty valid/test. Or a simpler split.
+            # For now, let's keep it simple: if not enough for chosen K, they mostly go to train.
+            # This part might need more nuanced handling depending on desired behavior for sparse users.
+            if nfeedback >= 3: # Original minimum: 1 train, 1 val, 1 test
+                 user_train[user] = User[user][:-2]
+                 user_valid[user] = [User[user][-2]] # Keep as list
+                 user_test[user] = [User[user][-1]]  # Keep as list
+            elif nfeedback == 2:
+                 user_train[user] = [User[user][0]]
+                 user_valid[user] = [User[user][1]]
+                 user_test[user] = []
+            else: # nfeedback == 1
+                 user_train[user] = User[user]
+                 user_valid[user] = []
+                 user_test[user] = []
+
+        else:
+            # Full split based on NUM_VALID_ITEMS and NUM_TEST_ITEMS
+            # Example: if NUM_VALID_ITEMS=1, NUM_TEST_ITEMS=2
+            # train: items up to last 3
+            # valid: 3rd to last item
+            # test: last 2 items
+            user_train[user] = User[user][:-(NUM_VALID_ITEMS + NUM_TEST_ITEMS)]
+            user_valid[user] = User[user][-(NUM_VALID_ITEMS + NUM_TEST_ITEMS) : -NUM_TEST_ITEMS]
+            user_test[user] = User[user][-NUM_TEST_ITEMS:]
+            
+    return [user_train, user_valid, user_test, usernum, itemnum]
+
+# TODO: merge evaluate functions for test and val set
+# evaluate on test set
+def evaluate(model, dataset, args):
+    [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
+
+    total_ndcg_at_k = 0.0
+    total_precision_at_k = 0.0
+    total_recall_at_k = 0.0
+    evaluated_users = 0.0
+
+    users_to_evaluate = range(1, usernum + 1)
+    if usernum > 10000: # Sample users if too many
+        users_to_evaluate = random.sample(range(1, usernum + 1), 10000)
+
+    for u in users_to_evaluate:
+        true_positive_items = test[u]
+        if len(train[u]) < 1 or not true_positive_items:
+            continue
+
+        seq = np.zeros([args.maxlen], dtype=np.int32)
+        idx = args.maxlen - 1
+        
+        # Add validation items to sequence history
+        for val_item in reversed(valid[u]):
+            if idx == -1: break
+            seq[idx] = val_item
+            idx -= 1
+        
+        # Add training items to sequence history
+        for train_item in reversed(train[u]):
+            if idx == -1: break
+            seq[idx] = train_item
+            idx -= 1
+
+        rated_items = set(train[u]) | set(valid[u]) | set(true_positive_items)
+        
+        # Items to rank: true positives + 100 negative samples
+        items_to_rank = list(true_positive_items)
+        negative_samples = []
+        for _ in range(100): # Number of negative samples
+            neg_item = np.random.randint(1, itemnum + 1)
+            while neg_item in rated_items:
+                neg_item = np.random.randint(1, itemnum + 1)
+            negative_samples.append(neg_item)
+            rated_items.add(neg_item) # Add to rated to avoid re-sampling same negative
+        
+        items_to_rank.extend(negative_samples)
+        
+        # Get predictions from model
+        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], items_to_rank]])
+        predictions = predictions[0] # predictions for user u
+
+        # Get top K recommended items
+        top_k_indices = predictions.argsort()[:K_EVAL]
+        recommended_items = [items_to_rank[i] for i in top_k_indices]
+
+        # Calculate metrics
+        hits_at_k = 0
+        dcg_at_k = 0.0
+        true_positive_set = set(true_positive_items)
+
+        for i, rec_item in enumerate(recommended_items):
+            if rec_item in true_positive_set:
+                hits_at_k += 1
+                dcg_at_k += 1.0 / np.log2(i + 2) # rank is i+1
+
+        idcg_at_k = 0.0
+        for i in range(min(len(true_positive_items), K_EVAL)):
+            idcg_at_k += 1.0 / np.log2(i + 2)
+        
+        ndcg_at_k = dcg_at_k / idcg_at_k if idcg_at_k > 0 else 0.0
+        precision_at_k = hits_at_k / K_EVAL
+        recall_at_k = hits_at_k / len(true_positive_items) if len(true_positive_items) > 0 else 0.0
+        
+        total_ndcg_at_k += ndcg_at_k
+        total_precision_at_k += precision_at_k
+        total_recall_at_k += recall_at_k
+        evaluated_users += 1
+
+        if evaluated_users % 100 == 0:
+            print('.', end="")
+            sys.stdout.flush()
+
+    avg_ndcg = total_ndcg_at_k / evaluated_users if evaluated_users > 0 else 0.0
+    avg_precision = total_precision_at_k / evaluated_users if evaluated_users > 0 else 0.0
+    avg_recall = total_recall_at_k / evaluated_users if evaluated_users > 0 else 0.0
+    
+    return avg_ndcg, avg_precision, avg_recall
+
+
 # evaluate on val set
 def evaluate_valid(model, dataset, args):
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
-    NDCG = 0.0
-    valid_user = 0.0
-    HT = 0.0
-    if usernum>10000:
-        users = random.sample(range(1, usernum + 1), 10000)
-    else:
-        users = range(1, usernum + 1)
-    for u in users:
-        if len(train[u]) < 1 or len(valid[u]) < 1: continue
+    total_ndcg_at_k = 0.0
+    total_precision_at_k = 0.0
+    total_recall_at_k = 0.0
+    evaluated_users = 0.0
+
+    users_to_evaluate = range(1, usernum + 1)
+    if usernum > 10000: # Sample users if too many
+        users_to_evaluate = random.sample(range(1, usernum + 1), 10000)
+
+    for u in users_to_evaluate:
+        true_positive_items = valid[u] # This is a list
+        if len(train[u]) < 1 or not true_positive_items:
+            continue
 
         seq = np.zeros([args.maxlen], dtype=np.int32)
         idx = args.maxlen - 1
-        for i in reversed(train[u]):
-            seq[idx] = i
-            idx -= 1
+        for train_item in reversed(train[u]): # History for validation is only train data
             if idx == -1: break
+            seq[idx] = train_item
+            idx -= 1
 
-        rated = set(train[u])
-        rated.add(0)
-        item_idx = [valid[u][0]]
-        for _ in range(100):
-            t = np.random.randint(1, itemnum + 1)
-            while t in rated: t = np.random.randint(1, itemnum + 1)
-            item_idx.append(t)
+        rated_items = set(train[u]) | set(true_positive_items)
+        
+        items_to_rank = list(true_positive_items)
+        negative_samples = []
+        for _ in range(100): # Number of negative samples
+            neg_item = np.random.randint(1, itemnum + 1)
+            while neg_item in rated_items:
+                neg_item = np.random.randint(1, itemnum + 1)
+            negative_samples.append(neg_item)
+            rated_items.add(neg_item)
 
-        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], item_idx]])
+        items_to_rank.extend(negative_samples)
+
+        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], items_to_rank]])
         predictions = predictions[0]
 
-        rank = predictions.argsort().argsort()[0].item()
+        top_k_indices = predictions.argsort()[:K_EVAL]
+        recommended_items = [items_to_rank[i] for i in top_k_indices]
 
-        valid_user += 1
+        hits_at_k = 0
+        dcg_at_k = 0.0
+        true_positive_set = set(true_positive_items)
 
-        if rank < 10:
-            NDCG += 1 / np.log2(rank + 2)
-            HT += 1
-        if valid_user % 100 == 0:
+        for i, rec_item in enumerate(recommended_items):
+            if rec_item in true_positive_set:
+                hits_at_k += 1
+                dcg_at_k += 1.0 / np.log2(i + 2)
+
+        idcg_at_k = 0.0
+        for i in range(min(len(true_positive_items), K_EVAL)): # true_positive_items is often 1 for valid
+            idcg_at_k += 1.0 / np.log2(i + 2)
+        
+        ndcg_at_k = dcg_at_k / idcg_at_k if idcg_at_k > 0 else 0.0
+        precision_at_k = hits_at_k / K_EVAL
+        recall_at_k = hits_at_k / len(true_positive_items) if len(true_positive_items) > 0 else 0.0
+        
+        total_ndcg_at_k += ndcg_at_k
+        total_precision_at_k += precision_at_k
+        total_recall_at_k += recall_at_k
+        evaluated_users += 1
+        
+        if evaluated_users % 100 == 0:
             print('.', end="")
             sys.stdout.flush()
 
-    return NDCG / valid_user, HT / valid_user
+    avg_ndcg = total_ndcg_at_k / evaluated_users if evaluated_users > 0 else 0.0
+    avg_precision = total_precision_at_k / evaluated_users if evaluated_users > 0 else 0.0
+    avg_recall = total_recall_at_k / evaluated_users if evaluated_users > 0 else 0.0
+
+    return avg_ndcg, avg_precision, avg_recall

@@ -1,104 +1,118 @@
 import numpy as np
 import torch
 
-class PositionalEmbedding(torch.nn.Module):
-    def __init__(self, max_len, embedding_dim):
-        super(PositionalEmbedding, self).__init__()
-        self.position_embeddings = torch.nn.Embedding(max_len, embedding_dim)
 
-    def forward(self, seq_len):
-        positions = torch.arange(seq_len, device=seq_len.device).unsqueeze(0)  # (1, seq_len)
-        return self.position_embeddings(positions)
-
-class SelfAttentionLayer(torch.nn.Module):
-    def __init__(self, hidden_units, num_heads, dropout_rate):
-        super(SelfAttentionLayer, self).__init__()
-        self.attn = torch.nn.MultiheadAttention(embed_dim=hidden_units, num_heads=num_heads, dropout=dropout_rate)
-
-    def forward(self, x, mask=None):
-        attn_output, _ = self.attn(x, x, x, attn_mask=mask)
-        return attn_output
-
-class FeedForwardLayer(torch.nn.Module):
+class PointWiseFeedForward(torch.nn.Module):
     def __init__(self, hidden_units, dropout_rate):
-        super(FeedForwardLayer, self).__init__()
+
+        super(PointWiseFeedForward, self).__init__()
+
         self.conv1 = torch.nn.Conv1d(hidden_units, hidden_units, kernel_size=1)
-        self.dropout1 = torch.nn.Dropout(dropout_rate)
+        self.dropout1 = torch.nn.Dropout(p=dropout_rate)
         self.relu = torch.nn.ReLU()
         self.conv2 = torch.nn.Conv1d(hidden_units, hidden_units, kernel_size=1)
-        self.dropout2 = torch.nn.Dropout(dropout_rate)
+        self.dropout2 = torch.nn.Dropout(p=dropout_rate)
 
-    def forward(self, x):
-        x = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(x.transpose(-1, -2))))))  # (B, C, L)
-        return x.transpose(-1, -2)
+    def forward(self, inputs):
+        outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
+        outputs = outputs.transpose(-1, -2) # as Conv1D requires (N, C, Length)
+        outputs += inputs
+        return outputs
 
+# pls use the following self-made multihead attention layer
+# in case your pytorch version is below 1.16 or for other reasons
+# https://github.com/pmixer/TiSASRec.pytorch/blob/master/model.py
 
 class SASRec(torch.nn.Module):
-    def __init__(self, user_num, item_num, hidden_units, num_blocks, num_heads, maxlen, dropout_rate, device):
+    def __init__(self, user_num, item_num, args):
         super(SASRec, self).__init__()
+
+        self.user_num = user_num
         self.item_num = item_num
-        self.hidden_units = hidden_units
-        self.device = device
+        self.dev = args.device
 
-        # Embedding layers
-        self.item_emb = torch.nn.Embedding(item_num + 1, hidden_units, padding_idx=0)
-        self.pos_emb = PositionalEmbedding(maxlen, hidden_units)
-        self.emb_dropout = torch.nn.Dropout(p=dropout_rate)
+        # TODO: loss += args.l2_emb for regularizing embedding vectors during training
+        # https://stackoverflow.com/questions/42704283/adding-l1-l2-regularization-in-pytorch
+        self.item_emb = torch.nn.Embedding(self.item_num+1, args.hidden_units, padding_idx=0)
+        self.pos_emb = torch.nn.Embedding(args.maxlen+1, args.hidden_units, padding_idx=0)
+        self.emb_dropout = torch.nn.Dropout(p=args.dropout_rate)
 
-        # Layers for SASRec
-        self.attn_layers = torch.nn.ModuleList([SelfAttentionLayer(hidden_units, num_heads, dropout_rate) for _ in range(num_blocks)])
-        self.ffn_layers = torch.nn.ModuleList([FeedForwardLayer(hidden_units, dropout_rate) for _ in range(num_blocks)])
-        self.layer_norms = torch.nn.ModuleList([torch.nn.LayerNorm(hidden_units, eps=1e-8) for _ in range(num_blocks)])
-        self.final_layer_norm = torch.nn.LayerNorm(hidden_units, eps=1e-8)
+        self.attention_layernorms = torch.nn.ModuleList() # to be Q for self-attention
+        self.attention_layers = torch.nn.ModuleList()
+        self.forward_layernorms = torch.nn.ModuleList()
+        self.forward_layers = torch.nn.ModuleList()
 
-        # Prediction layer (logits calculation)
-        self.predict_layer = torch.nn.Linear(hidden_units, item_num)
+        self.last_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
 
-    def forward(self, user_ids, log_seqs, pos_seqs, neg_seqs):
-        # Get item embeddings and add positional embeddings
-        seq_embeds = self.item_emb(log_seqs)  # (B, T, C)
-        pos_embeds = self.pos_emb(log_seqs.size(1))  # (T, C)
-        seq_embeds += pos_embeds
+        for _ in range(args.num_blocks):
+            new_attn_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
+            self.attention_layernorms.append(new_attn_layernorm)
 
-        seq_embeds = self.emb_dropout(seq_embeds)  # Apply dropout
+            new_attn_layer =  torch.nn.MultiheadAttention(args.hidden_units,
+                                                            args.num_heads,
+                                                            args.dropout_rate)
+            self.attention_layers.append(new_attn_layer)
 
-        # Attention and Feedforward blocks
-        for i in range(len(self.attn_layers)):
-            attn_out = self.attn_layers[i](seq_embeds.transpose(0, 1))  # (T, B, C)
-            seq_embeds = self.layer_norms[i](attn_out + seq_embeds)
+            new_fwd_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
+            self.forward_layernorms.append(new_fwd_layernorm)
 
-            ff_out = self.ffn_layers[i](seq_embeds)
-            seq_embeds = self.layer_norms[i](ff_out + seq_embeds)
+            new_fwd_layer = PointWiseFeedForward(args.hidden_units, args.dropout_rate)
+            self.forward_layers.append(new_fwd_layer)
 
-        # Final layer normalization
-        seq_embeds = self.final_layer_norm(seq_embeds)
+            # self.pos_sigmoid = torch.nn.Sigmoid()
+            # self.neg_sigmoid = torch.nn.Sigmoid()
 
-        # Prediction logits for positive and negative samples
-        pos_embs = self.item_emb(pos_seqs)
-        neg_embs = self.item_emb(neg_seqs)
+    def log2feats(self, log_seqs): # TODO: fp64 and int64 as default in python, trim?
+        seqs = self.item_emb(torch.LongTensor(log_seqs).to(self.dev))
+        seqs *= self.item_emb.embedding_dim ** 0.5
+        poss = np.tile(np.arange(1, log_seqs.shape[1] + 1), [log_seqs.shape[0], 1])
+        # TODO: directly do tensor = torch.arange(1, xxx, device='cuda') to save extra overheads
+        poss *= (log_seqs != 0)
+        seqs += self.pos_emb(torch.LongTensor(poss).to(self.dev))
+        seqs = self.emb_dropout(seqs)
 
-        pos_logits = (seq_embeds * pos_embs).sum(dim=-1)
-        neg_logits = (seq_embeds * neg_embs).sum(dim=-1)
+        tl = seqs.shape[1] # time dim len for enforce causality
+        attention_mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.dev))
 
-        return pos_logits, neg_logits
+        for i in range(len(self.attention_layers)):
+            seqs = torch.transpose(seqs, 0, 1)
+            Q = self.attention_layernorms[i](seqs)
+            mha_outputs, _ = self.attention_layers[i](Q, seqs, seqs, 
+                                            attn_mask=attention_mask)
+                                            # need_weights=False) this arg do not work?
+            seqs = Q + mha_outputs
+            seqs = torch.transpose(seqs, 0, 1)
 
-    def predict(self, user_ids, log_seqs, item_indices):
-        seq_embeds = self.item_emb(log_seqs)  # (B, T, C)
-        pos_embeds = self.pos_emb(log_seqs.size(1))  # (T, C)
-        seq_embeds += pos_embeds
-        seq_embeds = self.emb_dropout(seq_embeds)
+            seqs = self.forward_layernorms[i](seqs)
+            seqs = self.forward_layers[i](seqs)
 
-        # Forward through attention layers and FFN layers
-        for i in range(len(self.attn_layers)):
-            attn_out = self.attn_layers[i](seq_embeds.transpose(0, 1))
-            seq_embeds = self.layer_norms[i](attn_out + seq_embeds)
+        log_feats = self.last_layernorm(seqs) # (U, T, C) -> (U, -1, C)
 
-            ff_out = self.ffn_layers[i](seq_embeds)
-            seq_embeds = self.layer_norms[i](ff_out + seq_embeds)
+        return log_feats
 
-        # Final prediction
-        final_emb = seq_embeds[:, -1, :]
-        item_embs = self.item_emb(item_indices)
-        logits = item_embs.matmul(final_emb.unsqueeze(-1)).squeeze(-1)
+    def forward(self, user_ids, log_seqs, pos_seqs, neg_seqs): # for training        
+        log_feats = self.log2feats(log_seqs) # user_ids hasn't been used yet
 
-        return logits
+        pos_embs = self.item_emb(torch.LongTensor(pos_seqs).to(self.dev))
+        neg_embs = self.item_emb(torch.LongTensor(neg_seqs).to(self.dev))
+
+        pos_logits = (log_feats * pos_embs).sum(dim=-1)
+        neg_logits = (log_feats * neg_embs).sum(dim=-1)
+
+        # pos_pred = self.pos_sigmoid(pos_logits)
+        # neg_pred = self.neg_sigmoid(neg_logits)
+
+        return pos_logits, neg_logits # pos_pred, neg_pred
+
+    def predict(self, user_ids, log_seqs, item_indices): # for inference
+        log_feats = self.log2feats(log_seqs) # user_ids hasn't been used yet
+
+        final_feat = log_feats[:, -1, :] # only use last QKV classifier, a waste
+
+        item_embs = self.item_emb(torch.LongTensor(item_indices).to(self.dev)) # (U, I, C)
+
+        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
+
+        # preds = self.pos_sigmoid(logits) # rank same item list for different users
+
+        return logits # preds # (U, I)
