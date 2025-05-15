@@ -12,7 +12,6 @@ NUM_VALID_ITEMS = 10
 NUM_TEST_ITEMS = 10 # Users will have 2 items in their test set
 K_EVAL = 10 # Evaluation cutoff for @K metrics
 
-DATA_PATH = "data/"
 DATA_PATH = "data_final_project/KuaiRec 2.0/sas_rec_data/"
 
 def build_index(dataset_name):

@@ -2,6 +2,7 @@ import os
 import time
 import torch
 import argparse
+from tqdm import tqdm
 
 from model import SASRec
 from utils import *
@@ -119,7 +120,7 @@ def main_process(args):
         all_item_ids = list(range(1, itemnum + 1))
         recommendations = {}
 
-        for user_id in range(1, usernum + 1):
+        for user_id in tqdm(range(1, usernum + 1), desc="Generating Recommendations"):
             if user_id % 100 == 0:
                 print(f"Processing user {user_id}/{usernum}...")
 
@@ -265,8 +266,16 @@ def main_process(args):
             best_test_ndcg, best_test_precision, best_test_recall = 0.0, 0.0, 0.0
             T = 0.0
             t0 = time.time()
-            for epoch in range(epoch_start_idx, args.num_epochs + 1):
-                for step in range(num_batch):
+            epoch_iterator = tqdm(range(epoch_start_idx, args.num_epochs + 1), 
+                                desc="Training Progress", 
+                                position=0, 
+                                leave=True)
+            for epoch in epoch_iterator:
+                batch_iterator = tqdm(range(num_batch), 
+                                    desc=f"Epoch {epoch}/{args.num_epochs}", 
+                                    position=1, 
+                                    leave=False)
+                for step in batch_iterator:
                     u, seq, pos, neg = sampler.next_batch()
                     u, seq, pos, neg = (
                         np.array(u),
@@ -287,10 +296,12 @@ def main_process(args):
                         loss += args.l2_emb * torch.norm(param)
                     loss.backward()
                     adam_optimizer.step()
-                    if step % (num_batch // 10 if num_batch > 10 else 1) == 0 : # Print 10 times per epoch
-                        print(
-                            "loss in epoch {} iteration {}/{}: {}".format(epoch, step, num_batch, loss.item())
-                        )
+                    
+                    # Update progress bar description with loss
+                    batch_iterator.set_description(f"Epoch {epoch}/{args.num_epochs} Loss: {loss.item():.4f}")
+
+                # Clear the batch progress bar at epoch end
+                batch_iterator.close()
 
                 if epoch % 20 == 0 or epoch == args.num_epochs : # Evaluate every 20 epochs or at the last epoch
                     model.eval()
