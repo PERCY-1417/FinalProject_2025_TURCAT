@@ -71,8 +71,8 @@ class SASRec(torch.nn.Module):
         seqs += self.pos_emb(torch.LongTensor(poss).to(self.dev))
         seqs = self.emb_dropout(seqs)
 
-        tl = seqs.shape[1] # time dim len for enforce causality
-        attention_mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.dev))
+        sequence_length = seqs.shape[1] # time dimension length for enforcing causality
+        attention_mask = ~torch.tril(torch.ones((sequence_length, sequence_length), dtype=torch.bool, device=self.dev))
 
         for i in range(len(self.attention_layers)):
             seqs = torch.transpose(seqs, 0, 1)

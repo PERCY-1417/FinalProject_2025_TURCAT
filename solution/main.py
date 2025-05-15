@@ -213,10 +213,10 @@ def main_process(args):
             print("Warning: No training data found or user_train is empty. Cannot train.")
             return {"status": "failure", "mode": "training", "error": "No training data available."}
 
-        cc = 0.0
+        total_interactions = 0.0
         for u_id in user_train:
-            cc += len(user_train[u_id])
-        print("average sequence length: %.2f" % (cc / len(user_train) if len(user_train) > 0 else 0.0))
+            total_interactions += len(user_train[u_id])
+        print("average sequence length: %.2f" % (total_interactions / len(user_train) if len(user_train) > 0 else 0.0))
 
         log_file_path = os.path.join(dataset_train_dir, "log.txt")
         with open(log_file_path, "w") as f_log:
@@ -275,7 +275,7 @@ def main_process(args):
 
             best_val_ndcg, best_val_precision, best_val_recall = 0.0, 0.0, 0.0
             best_test_ndcg, best_test_precision, best_test_recall = 0.0, 0.0, 0.0
-            T = 0.0
+            total_training_time = 0.0
             t0 = time.time()
             epoch_iterator = tqdm(range(epoch_start_idx, args.num_epochs + 1), 
                                 desc="Training Progress", 
@@ -317,7 +317,7 @@ def main_process(args):
                 if epoch % 20 == 0 or epoch == args.num_epochs : # Evaluate every 20 epochs or at the last epoch
                     model.eval()
                     t1 = time.time() - t0
-                    T += t1
+                    total_training_time += t1
                     print("Evaluating...", end="")
                     t_test_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)
                     t_valid_eval = evaluate_valid(model, (user_train, user_valid, user_test, usernum, itemnum), args)
@@ -325,7 +325,7 @@ def main_process(args):
                         "epoch:%d, time: %f(s), valid (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f), test (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f)"
                         % (
                             epoch,
-                            T,
+                            total_training_time,
                             t_valid_eval[0],
                             t_valid_eval[1],
                             t_valid_eval[2],
@@ -373,7 +373,7 @@ def main_process(args):
                     model.train()
 
             # Save final model
-            if epoch == args.num_epochs: # Ensure this always refers to the completed last epoch
+            if epoch == args.num_epochs and epoch % 20 != 0: # Ensure this always refers to the completed last epoch
                 folder = dataset_train_dir
                 fname = "SASRec.final_epoch={}.lr={}.layer={}.head={}.hidden={}.maxlen={}.pth"
                 fname = fname.format(
