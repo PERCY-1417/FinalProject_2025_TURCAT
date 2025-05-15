@@ -124,7 +124,13 @@ class WarpSampler(object):
 
 
 # train/val/test data generation
-def data_partition(fname):
+def save_split_to_file(split_dict, filename):
+    with open(DATA_PATH + filename, "w") as f:
+        for user, items in split_dict.items():
+            for item in items:
+                f.write(f"{user} {item}\n")
+
+def data_partition(fname, save_files=True):
     usernum = 0
     itemnum = 0
     User = defaultdict(list)
@@ -152,8 +158,8 @@ def data_partition(fname):
             # This part might need more nuanced handling depending on desired behavior for sparse users.
             if nfeedback >= 3: # Original minimum: 1 train, 1 val, 1 test
                  user_train[user] = User[user][:-2]
-                 user_valid[user] = [User[user][-2]] # Keep as list
-                 user_test[user] = [User[user][-1]]  # Keep as list
+                 user_valid[user] = [User[user][-2]]
+                 user_test[user] = [User[user][-1]]
             elif nfeedback == 2:
                  user_train[user] = [User[user][0]]
                  user_valid[user] = [User[user][1]]
@@ -162,7 +168,6 @@ def data_partition(fname):
                  user_train[user] = User[user]
                  user_valid[user] = []
                  user_test[user] = []
-
         else:
             # Full split based on NUM_VALID_ITEMS and NUM_TEST_ITEMS
             # Example: if NUM_VALID_ITEMS=1, NUM_TEST_ITEMS=2
@@ -172,7 +177,13 @@ def data_partition(fname):
             user_train[user] = User[user][:-(NUM_VALID_ITEMS + NUM_TEST_ITEMS)]
             user_valid[user] = User[user][-(NUM_VALID_ITEMS + NUM_TEST_ITEMS) : -NUM_TEST_ITEMS]
             user_test[user] = User[user][-NUM_TEST_ITEMS:]
-            
+    
+    # Save splits to files if requested
+    if save_files:
+        save_split_to_file(user_train, "train.txt")
+        save_split_to_file(user_valid, "validation.txt")
+        save_split_to_file(user_test, "test.txt")
+    
     return [user_train, user_valid, user_test, usernum, itemnum]
 
 # TODO: merge evaluate functions for test and val set

@@ -1,4 +1,4 @@
 data_final_project
 __pycache__
 .venv
-solution/train_default/
+models
