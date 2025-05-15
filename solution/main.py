@@ -318,6 +318,7 @@ def main_process(args):
                     model.eval()
                     t1 = time.time() - t0
                     total_training_time += t1
+                    print("\n")
                     print("Evaluating...", end="")
                     t_test_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)
                     t_valid_eval = evaluate_valid(model, (user_train, user_valid, user_test, usernum, itemnum), args)
@@ -409,7 +410,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     results = main_process(args)
     
-    print("\\n--- Process Summary ---")
+    print("\n--- Process Summary ---")
     if results:
         print(f"Status: {results.get('status')}")
         print(f"Mode: {results.get('mode')}")
@@ -424,4 +425,4 @@ if __name__ == "__main__":
     else:
         print("main_process did not return any results.")
 
-    print("\\nDone")
+    print("\nDone")
