@@ -74,12 +74,12 @@ You can find multiple main parts in the project:
 - The main.py file which is the entry point of the project (see command to run at the beginning of the README), which is use in combination with model.py and utils.py
 
 ```sh
-Project
-  ├── solutions
+project
+  ├── solution
   │   ├── EDA.ipynb
+  │   ├── prepare_data.py
   │   ├── main.py
-  │   ├── model.py
-  │   └── prepare_data.py
+  │   └── model.py
 ```
 
 ## Experiments
