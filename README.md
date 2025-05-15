@@ -1,6 +1,13 @@
 
 
 
+Prepare Data 
+
+```
+# this step is a pre-processing step to build the data for training, converting the raw format from KuaiRec 2.0 to the format required by SASRec
+python build_data_for_training.py 
+```
+
 
 To launch the train
 ```shell
