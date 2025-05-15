@@ -219,10 +219,11 @@ def data_partition(fname, save_files=True, out_dir=None):
 
     return UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum
 
-
-# TODO: merge evaluate functions for test and val set
-# evaluate on test set
-def evaluate(model, dataset, args):
+def evaluate(model, dataset, args, mode="test"):
+    """
+    Evaluate model on test or validation set.
+    mode: "test" or "valid"
+    """
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
     total_ndcg_at_k = 0.0
@@ -234,123 +235,42 @@ def evaluate(model, dataset, args):
     if usernum > 10000:  # Sample users if too many
         users_to_evaluate = random.sample(range(1, usernum + 1), 10000)
 
-    users_to_evaluate = list(test.keys())  # Only evaluate users with test items
+    if mode == "test":
+        users_to_evaluate = list(test.keys())  # Only evaluate users with test items
+    else:
+        users_to_evaluate = list(valid.keys())  # Only evaluate users with valid items
 
     for u in users_to_evaluate:
-        true_positive_items = test[u]
+        if mode == "test":
+            true_positive_items = test[u]
+            # For test, history is train + valid
+            seq = np.zeros([args.maxlen], dtype=np.int32)
+            idx = args.maxlen - 1
+            for val_item in reversed(valid[u]):
+                if idx == -1:
+                    break
+                seq[idx] = val_item
+                idx -= 1
+            for train_item in reversed(train[u]):
+                if idx == -1:
+                    break
+                seq[idx] = train_item
+                idx -= 1
+            rated_items = set(train[u]) | set(valid[u]) | set(true_positive_items)
+        else:
+            true_positive_items = valid[u]
+            # For valid, history is only train
+            seq = np.zeros([args.maxlen], dtype=np.int32)
+            idx = args.maxlen - 1
+            for train_item in reversed(train[u]):
+                if idx == -1:
+                    break
+                seq[idx] = train_item
+                idx -= 1
+            rated_items = set(train[u]) | set(true_positive_items)
+
         if len(train[u]) < 1 or not true_positive_items:
             continue
-
-        seq = np.zeros([args.maxlen], dtype=np.int32)
-        idx = args.maxlen - 1
-
-        # Add validation items to sequence history
-        for val_item in reversed(valid[u]):
-            if idx == -1:
-                break
-            seq[idx] = val_item
-            idx -= 1
-
-        # Add training items to sequence history
-        for train_item in reversed(train[u]):
-            if idx == -1:
-                break
-            seq[idx] = train_item
-            idx -= 1
-
-        rated_items = set(train[u]) | set(valid[u]) | set(true_positive_items)
-
-        # Items to rank: true positives + 100 negative samples
-        items_to_rank = list(true_positive_items)
-        negative_samples = []
-        for _ in range(100):  # Number of negative samples
-            neg_item = np.random.randint(1, itemnum + 1)
-            while neg_item in rated_items:
-                neg_item = np.random.randint(1, itemnum + 1)
-            negative_samples.append(neg_item)
-            rated_items.add(neg_item)  # Add to rated to avoid re-sampling same negative
-
-        items_to_rank.extend(negative_samples)
-
-        # Get predictions from model
-        predictions = -model.predict(
-            *[np.array(l) for l in [[u], [seq], items_to_rank]]
-        )
-        predictions = predictions[0]  # predictions for user u
-
-        # Get top K recommended items
-        top_k_indices = predictions.argsort()[:K_EVAL]
-        recommended_items = [items_to_rank[i] for i in top_k_indices]
-
-        # Calculate metrics
-        hits_at_k = 0
-        dcg_at_k = 0.0
-        true_positive_set = set(true_positive_items)
-
-        for i, rec_item in enumerate(recommended_items):
-            if rec_item in true_positive_set:
-                hits_at_k += 1
-                dcg_at_k += 1.0 / np.log2(i + 2)  # rank is i+1
-
-        idcg_at_k = 0.0
-        for i in range(min(len(true_positive_items), K_EVAL)):
-            idcg_at_k += 1.0 / np.log2(i + 2)
-
-        ndcg_at_k = dcg_at_k / idcg_at_k if idcg_at_k > 0 else 0.0
-        precision_at_k = hits_at_k / K_EVAL
-        recall_at_k = (
-            hits_at_k / len(true_positive_items)
-            if len(true_positive_items) > 0
-            else 0.0
-        )
-
-        total_ndcg_at_k += ndcg_at_k
-        total_precision_at_k += precision_at_k
-        total_recall_at_k += recall_at_k
-        evaluated_users += 1
-
-        if evaluated_users % 100 == 0:
-            print(".", end="")
-            sys.stdout.flush()
-
-    avg_ndcg = total_ndcg_at_k / evaluated_users if evaluated_users > 0 else 0.0
-    avg_precision = (
-        total_precision_at_k / evaluated_users if evaluated_users > 0 else 0.0
-    )
-    avg_recall = total_recall_at_k / evaluated_users if evaluated_users > 0 else 0.0
-
-    return avg_ndcg, avg_precision, avg_recall
-
-
-# evaluate on val set
-def evaluate_valid(model, dataset, args):
-    [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
-
-    total_ndcg_at_k = 0.0
-    total_precision_at_k = 0.0
-    total_recall_at_k = 0.0
-    evaluated_users = 0.0
-
-    users_to_evaluate = range(1, usernum + 1)
-    if usernum > 10000:  # Sample users if too many
-        users_to_evaluate = random.sample(range(1, usernum + 1), 10000)
-
-    for u in users_to_evaluate:
-        true_positive_items = valid[u]  # This is a list
-        if len(train[u]) < 1 or not true_positive_items:
-            continue
-
-        seq = np.zeros([args.maxlen], dtype=np.int32)
-        idx = args.maxlen - 1
-        for train_item in reversed(
-            train[u]
-        ):  # History for validation is only train data
-            if idx == -1:
-                break
-            seq[idx] = train_item
-            idx -= 1
-
-        rated_items = set(train[u]) | set(true_positive_items)
 
         items_to_rank = list(true_positive_items)
         negative_samples = []
@@ -381,9 +301,7 @@ def evaluate_valid(model, dataset, args):
                 dcg_at_k += 1.0 / np.log2(i + 2)
 
         idcg_at_k = 0.0
-        for i in range(
-            min(len(true_positive_items), K_EVAL)
-        ):  # true_positive_items is often 1 for valid
+        for i in range(min(len(true_positive_items), K_EVAL)):
             idcg_at_k += 1.0 / np.log2(i + 2)
 
         ndcg_at_k = dcg_at_k / idcg_at_k if idcg_at_k > 0 else 0.0

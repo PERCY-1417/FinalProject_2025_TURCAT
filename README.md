@@ -37,7 +37,7 @@ To compute the inference only on the basic model
 python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true
 ```
 
-To generate the recommendations on the basic model
+To generate the recommendations on the basic model. You can add a --top_n= parameter to generate the top n recommendations as you see fit (default is 10)
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --generate_recommendations=true
 ```

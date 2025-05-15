@@ -199,6 +199,13 @@ def main_process(args):
         print("\n--- Top-N Recommendations Generated ---")
         
         recs_file_path = os.path.join(dataset_train_dir, 'recommendations.json')
+        # Save recommendations in the same folder as the model weights used
+        if args.state_dict_path is not None:
+            model_folder = os.path.dirname(args.state_dict_path)
+        else:
+            model_folder = dataset_train_dir  # fallback
+
+        recs_file_path = os.path.join(model_folder, f'top_{args.top_n}.json')
         try:
             import json
             with open(recs_file_path, 'w') as f_recs:
@@ -213,7 +220,7 @@ def main_process(args):
 
     elif args.inference_only:
         model.eval()
-        t_test = evaluate(model, (UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum), args)  # Pass dataset_splits
+        t_test = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)  # Pass dataset_splits
         print(
             "test (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f)"
             % (t_test[0], t_test[1], t_test[2])
@@ -346,7 +353,7 @@ def main_process(args):
                     epoch_iterator.clear()
                     
                     t_test_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)
-                    t_valid_eval = evaluate_valid(model, (user_train, user_valid, user_test, usernum, itemnum), args)
+                    t_valid_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args, mode="valid")
                     
                     eval_msg = (
                         f"epoch:{epoch}, time: {total_training_time:.2f}(s), "
