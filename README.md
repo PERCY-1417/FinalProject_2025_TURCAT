@@ -1,5 +1,12 @@
+# Project Assignment: Short Video Recommender System (KuaiRec)
 
+## Objective
 
+Develop a recommender system that suggests short videos to users based on user preferences, interaction histories, and video content using the KuaiRec dataset. The challenge is to create a personalised and scalable recommendation engine similar to those used in platforms like TikTok or Kuaishou.
+
+You can see here the [instructions](INSTRUCTIONS.md)
+
+## How to Run
 
 Prepare Data 
 
