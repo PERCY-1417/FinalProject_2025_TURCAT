@@ -57,7 +57,7 @@ f.close()
 
 if __name__ == "__main__":
     # Load dataset and model arguments
-    dataset = data_partition(args.dataset, save_files=args.save_files)
+    dataset = data_partition(args.dataset, save_files=args.save_files, out_dir=dataset_train_dir)
     [user_train, user_valid, user_test, usernum, itemnum] = dataset
 
     model = SASRec(usernum, itemnum, args).to(args.device)

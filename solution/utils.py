@@ -5,6 +5,7 @@ import random
 import numpy as np
 from collections import defaultdict
 from multiprocessing import Process, Queue
+import os
 
 # Number of items for validation and test sets
 NUM_VALID_ITEMS = 10
@@ -124,13 +125,13 @@ class WarpSampler(object):
 
 
 # train/val/test data generation
-def save_split_to_file(split_dict, filename):
-    with open(DATA_PATH + filename, "w") as f:
+def save_split_to_file(split_dict, filename, out_dir):
+    with open(os.path.join(out_dir, filename), "w") as f:
         for user, items in split_dict.items():
             for item in items:
                 f.write(f"{user} {item}\n")
 
-def data_partition(fname, save_files=True):
+def data_partition(fname, save_files=True, out_dir=None):
     usernum = 0
     itemnum = 0
     User = defaultdict(list)
@@ -179,10 +180,10 @@ def data_partition(fname, save_files=True):
             user_test[user] = User[user][-NUM_TEST_ITEMS:]
     
     # Save splits to files if requested
-    if save_files:
-        save_split_to_file(user_train, "train.txt")
-        save_split_to_file(user_valid, "validation.txt")
-        save_split_to_file(user_test, "test.txt")
+    if save_files and out_dir is not None:
+        save_split_to_file(user_train, "train.txt", out_dir)
+        save_split_to_file(user_valid, "validation.txt", out_dir)
+        save_split_to_file(user_test, "test.txt", out_dir)
     
     return [user_train, user_valid, user_test, usernum, itemnum]
 
