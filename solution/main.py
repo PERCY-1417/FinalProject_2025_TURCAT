@@ -137,9 +137,17 @@ def main_process(args):
         all_item_ids = list(range(1, itemnum + 1))
         recommendations = {}
 
-        for user_id in tqdm(range(1, usernum + 1), desc="Generating Recommendations"):
-            if user_id % 100 == 0:
-                print(f"Processing user {user_id}/{usernum}...")
+        progress_bar = tqdm(
+            range(1, usernum + 1),
+            desc="Generating recommendations",
+            ncols=100,
+            position=0,
+            leave=True
+        )
+
+        for user_id in progress_bar:
+            # Update progress description with current user
+            progress_bar.set_description(f"Processing user {user_id}/{usernum}")
 
             # Ensure user_train, user_valid, user_test are available. They should be from dataset_splits.
             history_train = user_train.get(user_id, [])
@@ -150,7 +158,7 @@ def main_process(args):
             user_full_history_set = set(user_full_history)
 
             if not user_full_history:
-                print(f"User {user_id} has no history. Skipping.")
+                progress_bar.write(f"User {user_id} has no history. Skipping.")
                 recommendations[user_id] = []
                 continue
 
@@ -169,7 +177,7 @@ def main_process(args):
             ]
 
             if not items_to_score:
-                print(f"User {user_id} has interacted with all items. Skipping.")
+                progress_bar.write(f"User {user_id} has interacted with all items. Skipping.")
                 recommendations[user_id] = []
                 continue
 
@@ -187,11 +195,8 @@ def main_process(args):
             ]
             recommendations[user_id] = top_n_recommendations
 
-        print("\\n--- Top-N Recommendations ---")
-        # for user_id, recs in recommendations.items(): # This can be verbose
-        #     if recs:
-        #         print(f"User {user_id}: {recs}")
-        print("--- End of Recommendations ---")
+        progress_bar.close()
+        print("\n--- Top-N Recommendations Generated ---")
         
         recs_file_path = os.path.join(dataset_train_dir, 'recommendations.json')
         try:
