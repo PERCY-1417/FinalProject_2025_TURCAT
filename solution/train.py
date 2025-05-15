@@ -4,7 +4,7 @@ import torch
 import argparse
 
 from model import SASRec
-from dataloader import *
+from utils import *
 
 def str2bool(s):
     if s not in {'false', 'true'}:

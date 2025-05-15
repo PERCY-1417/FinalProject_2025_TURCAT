@@ -7,8 +7,8 @@ from collections import defaultdict
 from multiprocessing import Process, Queue
 
 # Number of items for validation and test sets
-NUM_VALID_ITEMS = 1
-NUM_TEST_ITEMS = 2 # Users will have 2 items in their test set
+NUM_VALID_ITEMS = 10
+NUM_TEST_ITEMS = 10 # Users will have 2 items in their test set
 K_EVAL = 10 # Evaluation cutoff for @K metrics
 
 DATA_PATH = "data/"
