@@ -26,7 +26,7 @@ parser.add_argument("--num_epochs", default=1000, type=int)
 parser.add_argument("--num_heads", default=1, type=int)
 parser.add_argument("--dropout_rate", default=0.2, type=float)
 parser.add_argument("--l2_emb", default=0.0, type=float)
-parser.add_argument("--device", default="cuda", type=str)
+parser.add_argument("--device", default="cpu", type=str)
 parser.add_argument("--inference_only", default=False, type=str2bool)
 parser.add_argument("--state_dict_path", default=None, type=str)
 parser.add_argument("--generate_recommendations", default=False, type=str2bool)
@@ -38,6 +38,12 @@ parser.add_argument(
     help="Whether to save train/validation/test splits to files",
 )
 parser.add_argument("--training_dataset", default=None, type=str, help="Dataset used for training (for usernum/itemnum in inference/recommendation)")
+parser.add_argument(
+    "--explicit_negatives",
+    default=False,
+    type=str2bool,
+    help="If True, sample negatives from both disliked and unseen items. If False, only sample from unseen items."
+)
 
 # args = parser.parse_args() # Moved to if __name__ == "__main__"
 
@@ -59,7 +65,11 @@ parser.add_argument("--training_dataset", default=None, type=str, help="Dataset 
 
 def main_process(args):
     models_root = "models"
-    dataset_train_dir = os.path.join(models_root, args.dataset + "_" + args.train_dir)
+    # Add suffix to train_dir if explicit_negatives is enabled
+    train_dir_name = args.train_dir
+    if args.explicit_negatives:
+        train_dir_name += "_explicit_negatives"
+    dataset_train_dir = os.path.join(models_root, args.dataset + "_" + train_dir_name)
     os.makedirs(dataset_train_dir, exist_ok=True)
 
     with open(os.path.join(dataset_train_dir, "args.txt"), "w") as f_args:
@@ -74,11 +84,10 @@ def main_process(args):
     # f_args.close() # With 'with open', close is automatic
 
     # Load dataset
-    # The data_partition function is expected to return: [user_train, user_valid, user_test, usernum, itemnum]
-    dataset_splits = data_partition(
+    # The data_partition function is expected to return: [UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum]
+    UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum = data_partition(
         args.dataset, save_files=args.save_files, out_dir=dataset_train_dir
     )
-    user_train, user_valid, user_test, usernum, itemnum = dataset_splits
 
     # Override usernum and itemnum if a different training dataset's stats are specified for model compatibility
     if args.training_dataset is not None and (args.inference_only or args.generate_recommendations):
@@ -191,7 +200,7 @@ def main_process(args):
 
     elif args.inference_only:
         model.eval()
-        t_test = evaluate(model, dataset_splits, args)  # Pass dataset_splits
+        t_test = evaluate(model, (UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum), args)  # Pass dataset_splits
         print(
             "test (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f)"
             % (t_test[0], t_test[1], t_test[2])
@@ -222,6 +231,8 @@ def main_process(args):
                 batch_size=args.batch_size,
                 maxlen=args.maxlen,
                 n_workers=3,
+                explicit_negatives=args.explicit_negatives,
+                user_disliked=UserDisliked
             )
 
             for name, param in model.named_parameters():
@@ -308,8 +319,8 @@ def main_process(args):
                     t1 = time.time() - t0
                     T += t1
                     print("Evaluating...", end="")
-                    t_test_eval = evaluate(model, dataset_splits, args)
-                    t_valid_eval = evaluate_valid(model, dataset_splits, args)
+                    t_test_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)
+                    t_valid_eval = evaluate_valid(model, (user_train, user_valid, user_test, usernum, itemnum), args)
                     print(
                         "epoch:%d, time: %f(s), valid (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f), test (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f)"
                         % (
