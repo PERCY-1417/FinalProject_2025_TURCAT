@@ -44,6 +44,12 @@ parser.add_argument(
     type=str2bool,
     help="If True, sample negatives from both disliked and unseen items. If False, only sample from unseen items."
 )
+parser.add_argument(
+    "--weighted_dislike",
+    default=False,
+    type=str2bool,
+    help="If True, upweight the loss for disliked negatives during training.",
+)
 
 # args = parser.parse_args() # Moved to if __name__ == "__main__"
 
@@ -65,9 +71,11 @@ parser.add_argument(
 
 def main_process(args):
     models_root = "models"
-    # Add suffix to train_dir if explicit_negatives is enabled
+    # Add suffixes to train_dir based on flags
     train_dir_name = args.train_dir
-    if args.explicit_negatives:
+    if args.explicit_negatives and args.weighted_dislike:
+        train_dir_name += "_explicit_negatives_with_weighted_dislike"
+    elif args.explicit_negatives:
         train_dir_name += "_explicit_negatives"
     dataset_train_dir = os.path.join(models_root, args.dataset + "_" + train_dir_name)
     os.makedirs(dataset_train_dir, exist_ok=True)
@@ -291,13 +299,16 @@ def main_process(args):
                                     ncols=100,
                                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
                 for step in batch_iterator:
-                    u, seq, pos, neg = sampler.next_batch()
-                    u, seq, pos, neg = (
+                    u, seq, pos, neg, neg_weight = sampler.next_batch()
+                    u, seq, pos, neg, neg_weight = (
                         np.array(u),
                         np.array(seq),
                         np.array(pos),
                         np.array(neg),
+                        np.array(neg_weight),
                     )
+                    neg_weight = torch.tensor(neg_weight, dtype=torch.float32, device=args.device)
+
                     pos_logits, neg_logits = model(u, seq, pos, neg)
                     pos_labels, neg_labels = torch.ones(
                         pos_logits.shape, device=args.device
@@ -306,7 +317,11 @@ def main_process(args):
                     adam_optimizer.zero_grad()
                     indices = np.where(pos != 0)
                     loss = bce_criterion(pos_logits[indices], pos_labels[indices])
-                    loss += bce_criterion(neg_logits[indices], neg_labels[indices])
+                    if args.weighted_dislike:
+                        # Use weighted loss for negatives
+                        loss += torch.nn.BCEWithLogitsLoss(weight=neg_weight[indices])(neg_logits[indices], neg_labels[indices])
+                    else:
+                        loss += bce_criterion(neg_logits[indices], neg_labels[indices])
                     for param in model.item_emb.parameters():
                         loss += args.l2_emb * torch.norm(param)
                     loss.backward()
@@ -391,6 +406,10 @@ def main_process(args):
 
 if __name__ == "__main__":
     args = parser.parse_args()
+
+    if args.weighted_dislike:
+        args.explicit_negatives = True
+
     results = main_process(args)
     
     print("\n--- Process Summary ---")

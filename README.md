@@ -16,22 +16,32 @@ python prepare_data.py
 ```
 
 
-To launch the train
+To launch the basic train
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20
 ```
 
-To compute the inference only
+To launch the train taking the disliked into account and putting them in the negative samples
+```shell
+python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20 --explicit_negatives=true
+```
+
+To launch the train taking the disliked into account and putting them in the negative samples with an extra weight in the loss (this enables explicit_negatives)
+```shell
+python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20 --weighted_dislike=true
+```
+
+To compute the inference only on the basic model
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true
 ```
 
-To generate the recommendations
+To generate the recommendations on the basic model
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --generate_recommendations=true
 ```
 
-To compute the inference only with a test dataset different than the training dataset
+To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix
 ```shell
 python main.py --dataset='small_matrix_no_remapping' --train_dir=default --device=cpu --state_dict_path='models/big_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true --training_dataset='big_matrix'
 ```

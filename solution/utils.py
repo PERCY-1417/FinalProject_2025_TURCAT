@@ -50,7 +50,8 @@ def sample_function(
     SEED,
     explicit_negatives=False,
     user_disliked=None,
-    p_dislike=0.5,  # probability to sample from disliked pool
+    p_dislike=0.5,
+    w_dislike=2.0,  # upweight for disliked negatives
 ):
     np.random.seed(SEED)
     uids = np.arange(1, usernum + 1, dtype=np.int32)
@@ -62,6 +63,7 @@ def sample_function(
         seq = np.zeros([maxlen], dtype=np.int32)
         pos = np.zeros([maxlen], dtype=np.int32)
         neg = np.zeros([maxlen], dtype=np.int32)
+        neg_weight = np.ones([maxlen], dtype=np.float32)
         nxt = user_train[uid][-1]
         idx = maxlen - 1
         ts = set(user_train[uid])
@@ -70,19 +72,20 @@ def sample_function(
             seq[idx] = i
             pos[idx] = nxt
             if nxt != 0:
-                # Hybrid negative sampling: disliked or unseen
                 if explicit_negatives and disliked and np.random.rand() < p_dislike:
                     neg[idx] = np.random.choice(disliked)
+                    neg_weight[idx] = w_dislike
                 else:
                     neg_item = np.random.randint(1, itemnum + 1)
                     while neg_item in ts or (neg_item in disliked):
                         neg_item = np.random.randint(1, itemnum + 1)
                     neg[idx] = neg_item
+                    neg_weight[idx] = 1.0
             nxt = i
             idx -= 1
             if idx == -1:
                 break
-        return (uid, seq, pos, neg)
+        return (uid, seq, pos, neg, neg_weight)
 
     while True:
         if counter % usernum == 0:
@@ -91,7 +94,8 @@ def sample_function(
         for i in range(batch_size):
             one_batch.append(sample(uids[counter % usernum]))
             counter += 1
-        result_queue.put(zip(*one_batch))
+        # Unpack as before, but now with neg_weight
+        result_queue.put(list(zip(*one_batch)))
 
 
 class WarpSampler(object):
