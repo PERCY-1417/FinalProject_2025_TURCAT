@@ -36,6 +36,7 @@ parser.add_argument(
     type=str2bool,
     help="Whether to save train/validation/test splits to files",
 )
+parser.add_argument("--training_dataset", default=None, type=str, help="Dataset used for training (for usernum/itemnum in inference)")
 
 args = parser.parse_args()
 
@@ -57,8 +58,16 @@ f.close()
 
 if __name__ == "__main__":
     # Load dataset and model arguments
-    dataset = data_partition(args.dataset, save_files=args.save_files, out_dir=dataset_train_dir)
-    [user_train, user_valid, user_test, usernum, itemnum] = dataset
+    dataset = data_partition(
+        args.dataset, save_files=args.save_files, out_dir=dataset_train_dir
+    )
+
+    if args.training_dataset is not None and (args.inference_only or args.generate_recommendations):
+        # Load usernum and itemnum from the trained dataset
+        usernum, itemnum = get_user_item_counts(args.training_dataset)
+    else:
+        # Use the current dataset as usual
+        [user_train, user_valid, user_test, usernum, itemnum] = dataset
 
     model = SASRec(usernum, itemnum, args).to(args.device)
 

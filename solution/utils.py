@@ -201,6 +201,8 @@ def evaluate(model, dataset, args):
     if usernum > 10000: # Sample users if too many
         users_to_evaluate = random.sample(range(1, usernum + 1), 10000)
 
+    users_to_evaluate = list(test.keys()) # Only evaluate users with test items
+
     for u in users_to_evaluate:
         true_positive_items = test[u]
         if len(train[u]) < 1 or not true_positive_items:
@@ -352,3 +354,21 @@ def evaluate_valid(model, dataset, args):
     avg_recall = total_recall_at_k / evaluated_users if evaluated_users > 0 else 0.0
 
     return avg_ndcg, avg_precision, avg_recall
+
+def get_user_item_counts(fname):
+    """
+    Quickly scan a dataset file to get the max user and item IDs.
+    Returns (usernum, itemnum)
+    """
+    max_user = 0
+    max_item = 0
+    with open(DATA_PATH + '%s.txt' % fname, 'r') as f:
+        for line in f:
+            u, i = line.rstrip().split(' ')
+            u = int(u)
+            i = int(i)
+            if u > max_user:
+                max_user = u
+            if i > max_item:
+                max_item = i
+    return max_user, max_item
