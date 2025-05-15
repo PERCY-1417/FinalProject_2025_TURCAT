@@ -280,12 +280,16 @@ def main_process(args):
             epoch_iterator = tqdm(range(epoch_start_idx, args.num_epochs + 1), 
                                 desc="Training Progress", 
                                 position=0, 
-                                leave=True)
+                                leave=True,
+                                ncols=100)
+
             for epoch in epoch_iterator:
                 batch_iterator = tqdm(range(num_batch), 
                                     desc=f"Epoch {epoch}/{args.num_epochs}", 
                                     position=1, 
-                                    leave=False)
+                                    leave=False,
+                                    ncols=100,
+                                    bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
                 for step in batch_iterator:
                     u, seq, pos, neg = sampler.next_batch()
                     u, seq, pos, neg = (
@@ -308,49 +312,44 @@ def main_process(args):
                     loss.backward()
                     adam_optimizer.step()
                     
-                    # Update progress bar description with loss
-                    batch_iterator.set_description(f"Epoch {epoch}/{args.num_epochs} Loss: {loss.item():.4f}")
+                    batch_iterator.set_postfix({'loss': f'{loss.item():.4f}'})
 
                 # Clear the batch progress bar at epoch end
                 batch_iterator.close()
-
-                if epoch % 20 == 0 or epoch == args.num_epochs : # Evaluate every 20 epochs or at the last epoch
+                
+                if epoch % 20 == 0 or epoch == args.num_epochs:  # Evaluate every 20 epochs or at the last epoch
                     model.eval()
                     t1 = time.time() - t0
                     total_training_time += t1
-                    print("\n")
-                    print("Evaluating...", end="")
+                    
+                    # Temporarily clear progress bars for evaluation output
+                    epoch_iterator.clear()
+                    
                     t_test_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)
                     t_valid_eval = evaluate_valid(model, (user_train, user_valid, user_test, usernum, itemnum), args)
-                    print(
-                        "epoch:%d, time: %f(s), valid (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f), test (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f)"
-                        % (
-                            epoch,
-                            total_training_time,
-                            t_valid_eval[0],
-                            t_valid_eval[1],
-                            t_valid_eval[2],
-                            t_test_eval[0],
-                            t_test_eval[1],
-                            t_test_eval[2],
-                        )
+                    
+                    eval_msg = (
+                        f"epoch:{epoch}, time: {total_training_time:.2f}(s), "
+                        f"valid (NDCG@10: {t_valid_eval[0]:.4f}, P@10: {t_valid_eval[1]:.4f}, R@10: {t_valid_eval[2]:.4f}), "
+                        f"test (NDCG@10: {t_test_eval[0]:.4f}, P@10: {t_test_eval[1]:.4f}, R@10: {t_test_eval[2]:.4f})"
                     )
-                    f_log.write(str(epoch) + " " + str(t_valid_eval) + " " + str(t_test_eval) + "\\n")
+                    
+                    # Update progress bar description with evaluation results
+                    epoch_iterator.write(eval_msg)
+                    
+                    # Write to log file
+                    f_log.write(str(epoch) + " " + str(t_valid_eval) + " " + str(t_test_eval) + "\n")
                     f_log.flush()
 
                     if (
                         t_valid_eval[2] > best_val_recall
                         or t_valid_eval[0] > best_val_ndcg
-                        # Removed test set condition for choosing best model to avoid overfitting to test
-                        # or t_test_eval[2] > best_test_recall 
-                        # or t_test_eval[0] > best_test_ndcg
                     ):
-                        print(f"New best validation performance found at epoch {epoch}.")
+                        epoch_iterator.write(f"New best validation performance found at epoch {epoch}.")
                         best_val_ndcg = t_valid_eval[0]
                         best_val_precision = t_valid_eval[1]
                         best_val_recall = t_valid_eval[2]
 
-                        # Log the test metrics corresponding to the best validation epoch
                         best_test_ndcg = t_test_eval[0]
                         best_test_precision = t_test_eval[1]
                         best_test_recall = t_test_eval[2]
@@ -368,29 +367,13 @@ def main_process(args):
                             args.maxlen,
                         )
                         torch.save(model.state_dict(), os.path.join(folder, fname))
-                        print(f"Saved model to {os.path.join(folder, fname)}")
+                        epoch_iterator.write(f"Saved model to {os.path.join(folder, fname)}")
                     
                     t0 = time.time()
                     model.train()
 
-            # Save final model
-            if epoch == args.num_epochs and epoch % 20 != 0: # Ensure this always refers to the completed last epoch
-                folder = dataset_train_dir
-                fname = "SASRec.final_epoch={}.lr={}.layer={}.head={}.hidden={}.maxlen={}.pth"
-                fname = fname.format(
-                    args.num_epochs, # This refers to the target number of epochs
-                    args.lr,
-                    args.num_blocks,
-                    args.num_heads,
-                    args.hidden_units,
-                    args.maxlen,
-                )
-                final_model_path = os.path.join(folder, fname)
-                torch.save(model.state_dict(), final_model_path)
-                print(f"Saved final model state at epoch {args.num_epochs} to {final_model_path}")
-
-            sampler.close()
-            # f_log.close() # Closed by with statement
+            # Clean up at the end
+            epoch_iterator.close()
 
         return {
             "status": "success", 
