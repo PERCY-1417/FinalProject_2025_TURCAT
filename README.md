@@ -12,9 +12,10 @@ Prepare Data
 
 ```
 # this step is a pre-processing step to build the data for training, converting the raw format from KuaiRec 2.0 to the format required by SASRec
-python prepare_data.py 
 ```
-
+```shell
+python prepare_data.py small_matrix
+```
 
 To launch the basic train
 ```shell
