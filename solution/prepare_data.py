@@ -39,7 +39,7 @@ with open(sas_rec_data_dir + f"{dataset_name}.txt", "w") as f:
     for row in df.itertuples():
         new_user = user_id_map[row.user_id]
         item = row.video_id
-        liked = 1 if row.watch_ratio > 2.0 else 0
+        liked = 1 if row.watch_ratio > 0.7 else 0
         f.write(f"{new_user} {item} {liked}\n")
 print("Done writing remapped file.")
 
@@ -49,6 +49,6 @@ with open(sas_rec_data_dir + f"{dataset_name}_no_remapping.txt", "w") as f:
     for row in df.itertuples():
         user = row.user_id
         item = row.video_id
-        liked = 1 if row.watch_ratio > 2.0 else 0
+        liked = 1 if row.watch_ratio > 0.7 else 0
         f.write(f"{user} {item} {liked}\n")
 print("Done writing no-remapping file.")
