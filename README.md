@@ -66,6 +66,22 @@ The implemented solution uses the SASRec architecture, which leverages the power
 - **Layer Normalization**: For training stability
 - **Dropout**: For regularization and preventing overfitting
 
+## Project
+
+You can find multiple main parts in the project:
+- The EDA notebook (exploratory data analysis)
+- The prepare_data.py file which is used to prepare the data for the model (convert the raw data from KuaiRec 2.0 to the format required by SASRec)
+- The main.py file which is the entry point of the project (see command to run at the beginning of the README), which is use in combination with model.py and utils.py
+
+```sh
+Project
+  ├── solutions
+  │   ├── EDA.ipynb
+  │   ├── main.py
+  │   ├── model.py
+  │   └── prepare_data.py
+```
+
 ## Experiments
 
 We conducted an extensive hyperparameter search with the following parameters:
