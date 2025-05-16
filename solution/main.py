@@ -37,12 +37,17 @@ parser.add_argument(
     type=str2bool,
     help="Whether to save train/validation/test splits to files",
 )
-parser.add_argument("--training_dataset", default=None, type=str, help="Dataset used for training (for usernum/itemnum in inference/recommendation)")
+parser.add_argument(
+    "--training_dataset",
+    default=None,
+    type=str,
+    help="Dataset used for training (for usernum/itemnum in inference/recommendation)",
+)
 parser.add_argument(
     "--explicit_negatives",
     default=False,
     type=str2bool,
-    help="If True, sample negatives from both disliked and unseen items. If False, only sample from unseen items."
+    help="If True, sample negatives from both disliked and unseen items. If False, only sample from unseen items.",
 )
 parser.add_argument(
     "--weighted_dislike",
@@ -69,6 +74,7 @@ parser.add_argument(
 #     )
 # f.close() # Moved to main_process
 
+
 def main_process(args):
     models_root = "models"
     # Add suffixes to train_dir based on flags
@@ -91,20 +97,38 @@ def main_process(args):
         )
     # f_args.close() # With 'with open', close is automatic
 
-    # Load dataset
+    # Decide if we want all interactions in the test set (cross-dataset inference/recommendation)
+    all_in_test = False
+    if (
+        args.inference_only or args.generate_recommendations
+    ) and args.training_dataset is not None:
+        all_in_test = True
+
     # The data_partition function is expected to return: [UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum]
-    UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum = data_partition(
-        args.dataset, save_files=args.save_files, out_dir=dataset_train_dir
+    UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum = (
+        data_partition(
+            args.dataset,
+            save_files=args.save_files,
+            out_dir=dataset_train_dir,
+            all_in_test=all_in_test,
+        )
     )
 
     # Override usernum and itemnum if a different training dataset's stats are specified for model compatibility
-    if args.training_dataset is not None and (args.inference_only or args.generate_recommendations):
-        print(f"Using user/item counts from specified training dataset: {args.training_dataset}")
-        usernum_from_training_set, itemnum_from_training_set = get_user_item_counts(args.training_dataset)
+    if args.training_dataset is not None and (
+        args.inference_only or args.generate_recommendations
+    ):
+        print(
+            f"Using user/item counts from specified training dataset: {args.training_dataset}"
+        )
+        usernum_from_training_set, itemnum_from_training_set = get_user_item_counts(
+            args.training_dataset
+        )
         usernum = usernum_from_training_set
         itemnum = itemnum_from_training_set
-        print(f"Overridden usernum: {usernum}, itemnum: {itemnum} for model initialization.")
-
+        print(
+            f"Overridden usernum: {usernum}, itemnum: {itemnum} for model initialization."
+        )
 
     model = SASRec(usernum, itemnum, args).to(args.device)
 
@@ -115,20 +139,37 @@ def main_process(args):
             )
             print(f"Loaded model weights from {args.state_dict_path}")
         except Exception as e:
-            error_msg = f"Failed loading state_dicts from {args.state_dict_path}. Error: {e}"
+            error_msg = (
+                f"Failed loading state_dicts from {args.state_dict_path}. Error: {e}"
+            )
             print(error_msg)
             if args.generate_recommendations:
-                return {"status": "failure", "mode": "generate_recommendations", "error": f"{error_msg} Cannot generate recommendations without a loaded model."}
+                return {
+                    "status": "failure",
+                    "mode": "generate_recommendations",
+                    "error": f"{error_msg} Cannot generate recommendations without a loaded model.",
+                }
             elif args.inference_only:
-                return {"status": "failure", "mode": "inference", "error": f"{error_msg} Cannot run inference without model weights."}
-            else: # Training mode
-                print("Proceeding with training from scratch or without resumed state due to load failure.")
+                return {
+                    "status": "failure",
+                    "mode": "inference",
+                    "error": f"{error_msg} Cannot run inference without model weights.",
+                }
+            else:  # Training mode
+                print(
+                    "Proceeding with training from scratch or without resumed state due to load failure."
+                )
                 # Model remains in its initial state, epoch_start_idx logic will handle starting from epoch 1.
-    elif args.generate_recommendations: # generate_recommendations requires state_dict_path
+    elif (
+        args.generate_recommendations
+    ):  # generate_recommendations requires state_dict_path
         error_msg = "Error: --generate_recommendations mode requires --state_dict_path to be provided."
         print(error_msg)
-        return {"status": "failure", "mode": "generate_recommendations", "error": error_msg}
-
+        return {
+            "status": "failure",
+            "mode": "generate_recommendations",
+            "error": error_msg,
+        }
 
     if args.generate_recommendations:
         print(f"Generating top-{args.top_n} recommendations for each user...")
@@ -142,7 +183,7 @@ def main_process(args):
             desc="Generating recommendations",
             ncols=100,
             position=0,
-            leave=True
+            leave=True,
         )
 
         for user_id in progress_bar:
@@ -177,13 +218,15 @@ def main_process(args):
             ]
 
             if not items_to_score:
-                progress_bar.write(f"User {user_id} has interacted with all items. Skipping.")
+                progress_bar.write(
+                    f"User {user_id} has interacted with all items. Skipping."
+                )
                 recommendations[user_id] = []
                 continue
 
             log_seqs_np = np.array([seq])
             item_indices_np = np.array(items_to_score)
-            
+
             scores = model.predict(np.array([user_id]), log_seqs_np, item_indices_np)
             scores_np = scores.cpu().detach().numpy().flatten()
 
@@ -197,46 +240,88 @@ def main_process(args):
 
         progress_bar.close()
         print("\n--- Top-N Recommendations Generated ---")
-        
-        recs_file_path = os.path.join(dataset_train_dir, 'recommendations.json')
+
+        recs_file_path = os.path.join(dataset_train_dir, "recommendations.json")
         # Save recommendations in the same folder as the model weights used
         if args.state_dict_path is not None:
             model_folder = os.path.dirname(args.state_dict_path)
         else:
             model_folder = dataset_train_dir  # fallback
 
-        recs_file_path = os.path.join(model_folder, f'top_{args.top_n}.json')
+        recs_file_path = os.path.join(model_folder, f"top_{args.top_n}.json")
         try:
             import json
-            with open(recs_file_path, 'w') as f_recs:
+
+            with open(recs_file_path, "w") as f_recs:
                 json.dump(recommendations, f_recs)
             print(f"Recommendations saved to {recs_file_path}")
-            return {"status": "success", "mode": "recommendation_generation", "output_file": recs_file_path, "num_users_processed": len(recommendations)}
+            return {
+                "status": "success",
+                "mode": "recommendation_generation",
+                "output_file": recs_file_path,
+                "num_users_processed": len(recommendations),
+            }
         except Exception as e:
             error_msg = f"Failed to save recommendations: {e}"
             print(error_msg)
-            return {"status": "failure", "mode": "recommendation_generation", "error": error_msg, "recommendations_data": recommendations}
-
+            return {
+                "status": "failure",
+                "mode": "recommendation_generation",
+                "error": error_msg,
+                "recommendations_data": recommendations,
+            }
 
     elif args.inference_only:
         model.eval()
-        t_test = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)  # Pass dataset_splits
+        t_test = evaluate(
+            model, (user_train, user_valid, user_test, usernum, itemnum), args
+        )  # Pass dataset_splits
         print(
             "test (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f)"
             % (t_test[0], t_test[1], t_test[2])
         )
-        return {"status": "success", "mode": "inference", "metrics": {"ndcg_at_10": t_test[0], "p_at_10": t_test[1], "r_at_10": t_test[2]}}
+        num_valid_items = sum(len(v) for v in user_valid.values())
+        num_test_items = sum(len(v) for v in user_test.values())
+        num_valid_users = len(user_valid)
+        num_test_users = len(user_test)
+        avg_valid_per_user = num_valid_items / num_valid_users if num_valid_users > 0 else 0
+        avg_test_per_user = num_test_items / num_test_users if num_test_users > 0 else 0
+
+        return {
+            "status": "success",
+            "mode": "inference",
+            "metrics": {
+                "ndcg_at_10": t_test[0],
+                "p_at_10": t_test[1],
+                "r_at_10": t_test[2],
+                "num_validation_items": num_valid_items,
+                "num_test_items": num_test_items,
+                "avg_validation_items_per_user": avg_valid_per_user,
+                "avg_test_items_per_user": avg_test_per_user,
+            },
+        }
 
     else:  # Training mode
-        num_batch = (len(user_train) - 1) // args.batch_size + 1 if len(user_train) > 0 else 0
+        num_batch = (
+            (len(user_train) - 1) // args.batch_size + 1 if len(user_train) > 0 else 0
+        )
         if num_batch == 0:
-            print("Warning: No training data found or user_train is empty. Cannot train.")
-            return {"status": "failure", "mode": "training", "error": "No training data available."}
+            print(
+                "Warning: No training data found or user_train is empty. Cannot train."
+            )
+            return {
+                "status": "failure",
+                "mode": "training",
+                "error": "No training data available.",
+            }
 
         total_interactions = 0.0
         for u_id in user_train:
             total_interactions += len(user_train[u_id])
-        print("average sequence length: %.2f" % (total_interactions / len(user_train) if len(user_train) > 0 else 0.0))
+        print(
+            "average sequence length: %.2f"
+            % (total_interactions / len(user_train) if len(user_train) > 0 else 0.0)
+        )
 
         log_file_path = os.path.join(dataset_train_dir, "log.txt")
         with open(log_file_path, "w") as f_log:
@@ -252,7 +337,7 @@ def main_process(args):
                 maxlen=args.maxlen,
                 n_workers=3,
                 explicit_negatives=args.explicit_negatives,
-                user_disliked=UserDisliked
+                user_disliked=UserDisliked,
             )
 
             for name, param in model.named_parameters():
@@ -267,27 +352,35 @@ def main_process(args):
             model.train()
 
             epoch_start_idx = 1
-            if args.state_dict_path is not None and not args.generate_recommendations: # Check if resuming and model was actually loaded earlier
+            if (
+                args.state_dict_path is not None and not args.generate_recommendations
+            ):  # Check if resuming and model was actually loaded earlier
                 # Model loading attempt was done earlier. If it failed, training starts from scratch.
                 # If it succeeded, try to parse epoch.
-                if any(p.requires_grad for p in model.parameters()): # A proxy to check if model was loaded vs fresh
+                if any(
+                    p.requires_grad for p in model.parameters()
+                ):  # A proxy to check if model was loaded vs fresh
                     try:
                         # Check if model actually has loaded weights, e.g. by comparing to a fresh init
                         # For simplicity, just try to parse epoch if path was given.
                         # The earlier check for args.state_dict_path already covers if the path was provided.
                         # And the load attempt was made.
                         # If model.load_state_dict was successful:
-                        if os.path.exists(args.state_dict_path): # Re-check to be sure, as load_state_dict might not error if path is wrong but model init is same
-                           # This logic assumes model was loaded. The earlier exception handles load failure.
-                           tail = args.state_dict_path[args.state_dict_path.find("epoch=") + 6:]
-                           epoch_start_idx = int(tail[: tail.find(".")]) + 1
-                           print(f"Resuming training from epoch {epoch_start_idx}")
+                        if os.path.exists(
+                            args.state_dict_path
+                        ):  # Re-check to be sure, as load_state_dict might not error if path is wrong but model init is same
+                            # This logic assumes model was loaded. The earlier exception handles load failure.
+                            tail = args.state_dict_path[
+                                args.state_dict_path.find("epoch=") + 6 :
+                            ]
+                            epoch_start_idx = int(tail[: tail.find(".")]) + 1
+                            print(f"Resuming training from epoch {epoch_start_idx}")
                     except:
                         print(
                             "Failed to parse epoch from state_dict_path for training resumption. Starting from epoch 1."
                         )
                         epoch_start_idx = 1
-            
+
             bce_criterion = torch.nn.BCEWithLogitsLoss()
             adam_optimizer = torch.optim.Adam(
                 model.parameters(), lr=args.lr, betas=(0.9, 0.98)
@@ -297,19 +390,23 @@ def main_process(args):
             best_test_ndcg, best_test_precision, best_test_recall = 0.0, 0.0, 0.0
             total_training_time = 0.0
             t0 = time.time()
-            epoch_iterator = tqdm(range(epoch_start_idx, args.num_epochs + 1), 
-                                desc="Training Progress", 
-                                position=0, 
-                                leave=True,
-                                ncols=100)
+            epoch_iterator = tqdm(
+                range(epoch_start_idx, args.num_epochs + 1),
+                desc="Training Progress",
+                position=0,
+                leave=True,
+                ncols=100,
+            )
 
             for epoch in epoch_iterator:
-                batch_iterator = tqdm(range(num_batch), 
-                                    desc=f"Epoch {epoch}/{args.num_epochs}", 
-                                    position=1, 
-                                    leave=False,
-                                    ncols=100,
-                                    bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+                batch_iterator = tqdm(
+                    range(num_batch),
+                    desc=f"Epoch {epoch}/{args.num_epochs}",
+                    position=1,
+                    leave=False,
+                    ncols=100,
+                    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+                )
                 for step in batch_iterator:
                     u, seq, pos, neg, neg_weight = sampler.next_batch()
                     u, seq, pos, neg, neg_weight = (
@@ -319,60 +416,84 @@ def main_process(args):
                         np.array(neg),
                         np.array(neg_weight),
                     )
-                    neg_weight = torch.tensor(neg_weight, dtype=torch.float32, device=args.device)
+                    neg_weight = torch.tensor(
+                        neg_weight, dtype=torch.float32, device=args.device
+                    )
 
                     pos_logits, neg_logits = model(u, seq, pos, neg)
                     pos_labels, neg_labels = torch.ones(
                         pos_logits.shape, device=args.device
                     ), torch.zeros(neg_logits.shape, device=args.device)
-                    
+
                     adam_optimizer.zero_grad()
                     indices = np.where(pos != 0)
                     loss = bce_criterion(pos_logits[indices], pos_labels[indices])
                     if args.weighted_dislike:
                         # Use weighted loss for negatives
-                        loss += torch.nn.BCEWithLogitsLoss(weight=neg_weight[indices])(neg_logits[indices], neg_labels[indices])
+                        loss += torch.nn.BCEWithLogitsLoss(weight=neg_weight[indices])(
+                            neg_logits[indices], neg_labels[indices]
+                        )
                     else:
                         loss += bce_criterion(neg_logits[indices], neg_labels[indices])
                     for param in model.item_emb.parameters():
                         loss += args.l2_emb * torch.norm(param)
                     loss.backward()
                     adam_optimizer.step()
-                    
-                    batch_iterator.set_postfix({'loss': f'{loss.item():.4f}'})
+
+                    batch_iterator.set_postfix({"loss": f"{loss.item():.4f}"})
 
                 # Clear the batch progress bar at epoch end
                 batch_iterator.close()
-                
-                if epoch % 20 == 0 or epoch == args.num_epochs:  # Evaluate every 20 epochs or at the last epoch
+
+                if (
+                    epoch % 20 == 0 or epoch == args.num_epochs
+                ):  # Evaluate every 20 epochs or at the last epoch
                     model.eval()
                     t1 = time.time() - t0
                     total_training_time += t1
-                    
+
                     # Temporarily clear progress bars for evaluation output
                     epoch_iterator.clear()
-                    
-                    t_test_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args)
-                    t_valid_eval = evaluate(model, (user_train, user_valid, user_test, usernum, itemnum), args, mode="valid")
-                    
+
+                    t_test_eval = evaluate(
+                        model,
+                        (user_train, user_valid, user_test, usernum, itemnum),
+                        args,
+                    )
+                    t_valid_eval = evaluate(
+                        model,
+                        (user_train, user_valid, user_test, usernum, itemnum),
+                        args,
+                        mode="valid",
+                    )
+
                     eval_msg = (
                         f"epoch:{epoch}, time: {total_training_time:.2f}(s), "
                         f"valid (NDCG@10: {t_valid_eval[0]:.4f}, P@10: {t_valid_eval[1]:.4f}, R@10: {t_valid_eval[2]:.4f}), "
                         f"test (NDCG@10: {t_test_eval[0]:.4f}, P@10: {t_test_eval[1]:.4f}, R@10: {t_test_eval[2]:.4f})"
                     )
-                    
+
                     # Update progress bar description with evaluation results
                     epoch_iterator.write(eval_msg)
-                    
+
                     # Write to log file
-                    f_log.write(str(epoch) + " " + str(t_valid_eval) + " " + str(t_test_eval) + "\n")
+                    f_log.write(
+                        str(epoch)
+                        + " "
+                        + str(t_valid_eval)
+                        + " "
+                        + str(t_test_eval)
+                        + "\n"
+                    )
                     f_log.flush()
 
                     if (
                         t_valid_eval[2] > best_val_recall
                         or t_valid_eval[0] > best_val_ndcg
                     ):
-                        epoch_iterator.write(f"New best validation performance found at epoch {epoch}.")
+                        epoch_iterator.write(
+                            f"New best validation performance found at epoch {epoch}."
+                        )
                         best_val_ndcg = t_valid_eval[0]
                         best_val_precision = t_valid_eval[1]
                         best_val_recall = t_valid_eval[2]
@@ -382,9 +503,7 @@ def main_process(args):
                         best_test_recall = t_test_eval[2]
 
                         folder = dataset_train_dir
-                        fname = (
-                            "SASRec.epoch={}.lr={}.layer={}.head={}.hidden={}.maxlen={}.pth"
-                        )
+                        fname = "SASRec.epoch={}.lr={}.layer={}.head={}.hidden={}.maxlen={}.pth"
                         fname = fname.format(
                             epoch,
                             args.lr,
@@ -394,17 +513,25 @@ def main_process(args):
                             args.maxlen,
                         )
                         torch.save(model.state_dict(), os.path.join(folder, fname))
-                        epoch_iterator.write(f"Saved model to {os.path.join(folder, fname)}")
-                    
+                        epoch_iterator.write(
+                            f"Saved model to {os.path.join(folder, fname)}"
+                        )
+
                     t0 = time.time()
                     model.train()
 
             # Clean up at the end
             epoch_iterator.close()
+        num_valid_items = sum(len(v) for v in user_valid.values())
+        num_test_items = sum(len(v) for v in user_test.values())
+        num_valid_users = len(user_valid)
+        num_test_users = len(user_test)
+        avg_valid_per_user = num_valid_items / num_valid_users if num_valid_users > 0 else 0
+        avg_test_per_user = num_test_items / num_test_users if num_test_users > 0 else 0
 
         return {
-            "status": "success", 
-            "mode": "training", 
+            "status": "success",
+            "mode": "training",
             "metrics": {
                 "best_val_ndcg_at_10": best_val_ndcg,
                 "best_val_p_at_10": best_val_precision,
@@ -412,9 +539,14 @@ def main_process(args):
                 "corresponding_test_ndcg_at_10": best_test_ndcg,
                 "corresponding_test_p_at_10": best_test_precision,
                 "corresponding_test_r_at_10": best_test_recall,
-                "log_file": log_file_path
-            }
+                "log_file": log_file_path,
+                "num_validation_items": num_valid_items,
+                "num_test_items": num_test_items,
+                "avg_validation_items_per_user": avg_valid_per_user,
+                "avg_test_items_per_user": avg_test_per_user,
+            },
         }
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -423,7 +555,7 @@ if __name__ == "__main__":
         args.explicit_negatives = True
 
     results = main_process(args)
-    
+
     print("\n--- Process Summary ---")
     if results:
         print(f"Status: {results.get('status')}")

@@ -8,8 +8,8 @@ from multiprocessing import Process, Queue
 import os
 
 # Number of items for validation and test sets
-NUM_VALID_ITEMS = 10
-NUM_TEST_ITEMS = 10  # Users will have 2 items in their test set
+NUM_VALID_ITEMS = 50
+NUM_TEST_ITEMS = 100  # Users will have 2 items in their test set
 K_EVAL = 10  # Evaluation cutoff for @K metrics
 
 DATA_PATH = "data_final_project/KuaiRec 2.0/sas_rec_data/"
@@ -151,7 +151,11 @@ def save_split_to_file(split_dict, filename, out_dir):
                 f.write(f"{user} {item}\n")
 
 
-def data_partition(fname, save_files=True, out_dir=None):
+def data_partition(fname, save_files=True, out_dir=None, all_in_test=False):
+    """
+    Partition the data into train/valid/test splits.
+    If all_in_test is True, put all user interactions into the test set (for cross-dataset inference).
+    """
     usernum = 0
     itemnum = 0
     User = defaultdict(list)
@@ -160,14 +164,13 @@ def data_partition(fname, save_files=True, out_dir=None):
     user_train = {}
     user_valid = {}
     user_test = {}
+
     # assume user/item index starting from 1
     with open(DATA_PATH + "%s.txt" % fname, "r") as f:
         for line in f:
             parts = line.rstrip().split(" ")
             u, i = int(parts[0]), int(parts[1])
-            liked = (
-                int(parts[2]) if len(parts) > 2 else 1
-            )  # default to 1 if not present
+            liked = int(parts[2]) if len(parts) > 2 else 1  # default to 1 if not present
             usernum = max(u, usernum)
             itemnum = max(i, itemnum)
             User[u].append(i)
@@ -176,40 +179,35 @@ def data_partition(fname, save_files=True, out_dir=None):
             else:
                 UserDisliked[u].append(i)
 
-    MIN_INTERACTIONS_FOR_FULL_SPLIT = (
-        1 + NUM_VALID_ITEMS + NUM_TEST_ITEMS
-    )  # Min 1 for train
+    if all_in_test:
+        for user in User:
+            user_train[user] = []
+            user_valid[user] = []
+            user_test[user] = User[user][:]
+    else:
+        MIN_INTERACTIONS_FOR_FULL_SPLIT = 1 + NUM_VALID_ITEMS + NUM_TEST_ITEMS  # Min 1 for train
 
-    for user in User:
-        nfeedback = len(User[user])
-        if nfeedback < MIN_INTERACTIONS_FOR_FULL_SPLIT:
-            # Not enough interactions for a full train/valid/test split according to NUM_VALID_ITEMS and NUM_TEST_ITEMS
-            # Fallback: use all for training, empty valid/test. Or a simpler split.
-            # For now, let's keep it simple: if not enough for chosen K, they mostly go to train.
-            # This part might need more nuanced handling depending on desired behavior for sparse users.
-            if nfeedback >= 3:  # Original minimum: 1 train, 1 val, 1 test
-                user_train[user] = User[user][:-2]
-                user_valid[user] = [User[user][-2]]
-                user_test[user] = [User[user][-1]]
-            elif nfeedback == 2:
-                user_train[user] = [User[user][0]]
-                user_valid[user] = [User[user][1]]
-                user_test[user] = []
-            else:  # nfeedback == 1
-                user_train[user] = User[user]
-                user_valid[user] = []
-                user_test[user] = []
-        else:
-            # Full split based on NUM_VALID_ITEMS and NUM_TEST_ITEMS
-            # Example: if NUM_VALID_ITEMS=1, NUM_TEST_ITEMS=2
-            # train: items up to last 3
-            # valid: 3rd to last item
-            # test: last 2 items
-            user_train[user] = User[user][: -(NUM_VALID_ITEMS + NUM_TEST_ITEMS)]
-            user_valid[user] = User[user][
-                -(NUM_VALID_ITEMS + NUM_TEST_ITEMS) : -NUM_TEST_ITEMS
-            ]
-            user_test[user] = User[user][-NUM_TEST_ITEMS:]
+        for user in User:
+            nfeedback = len(User[user])
+            if nfeedback < MIN_INTERACTIONS_FOR_FULL_SPLIT:
+                if nfeedback >= 3:
+                    user_train[user] = User[user][:-2]
+                    user_valid[user] = [User[user][-2]]
+                    user_test[user] = [User[user][-1]]
+                elif nfeedback == 2:
+                    user_train[user] = [User[user][0]]
+                    user_valid[user] = [User[user][1]]
+                    user_test[user] = []
+                else:  # nfeedback == 1
+                    user_train[user] = User[user]
+                    user_valid[user] = []
+                    user_test[user] = []
+            else:
+                user_train[user] = User[user][: -(NUM_VALID_ITEMS + NUM_TEST_ITEMS)]
+                user_valid[user] = User[user][
+                    -(NUM_VALID_ITEMS + NUM_TEST_ITEMS) : -NUM_TEST_ITEMS
+                ]
+                user_test[user] = User[user][-NUM_TEST_ITEMS:]
 
     # Save splits to files if requested
     if save_files and out_dir is not None:
