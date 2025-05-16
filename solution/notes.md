@@ -30,3 +30,13 @@ Weighted Dislike Metrics:
   corresponding_test_ndcg_at_10: 0.9911129658679937
   corresponding_test_p_at_10: 0.9875974486180031
   corresponding_test_r_at_10: 0.9875974486180031
+
+
+  Model with weighted dislike: better results without the flag than with
+  Model without anything: better results with the flag than without
+
+  What does this mean?
+  The dataset is "easy" for the model:
+
+  There are many liked items per user, so even random or popularity-based recommendations can achieve high precision/NDCG.
+  The model is not being challenged to distinguish between liked and disliked items in a meaningful way.
