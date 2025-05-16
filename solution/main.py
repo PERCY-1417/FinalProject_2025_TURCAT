@@ -104,15 +104,33 @@ def main_process(args):
     ) and args.training_dataset is not None:
         all_in_test = True
 
-    # The data_partition function is expected to return: [UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum]
-    UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum = (
-        data_partition(
+    # If cross-dataset inference/recommendation, build splits accordingly
+    if (args.inference_only or args.generate_recommendations) and args.training_dataset is not None:
+        # Load training dataset splits (for user histories)
+        train_dataset = data_partition(
+            args.training_dataset,
+            save_files=False,
+            out_dir=None,
+            all_in_test=False,
+        )
+        # Load evaluation dataset splits (for test items)
+        eval_dataset = data_partition(
             args.dataset,
             save_files=args.save_files,
             out_dir=dataset_train_dir,
-            all_in_test=all_in_test,
+            all_in_test=True,
         )
-    )
+        user_train, user_valid, user_test, usernum, itemnum = build_cross_dataset_splits(train_dataset, eval_dataset)
+        # Optionally, also merge UserLiked/UserDisliked if needed
+        UserLiked, UserDisliked = train_dataset[0], train_dataset[1]
+    else:
+        # Standard single-dataset split
+        UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum = data_partition(
+            args.dataset,
+            save_files=args.save_files,
+            out_dir=dataset_train_dir,
+            all_in_test=False,
+        )
 
     # Override usernum and itemnum if a different training dataset's stats are specified for model compatibility
     if args.training_dataset is not None and (

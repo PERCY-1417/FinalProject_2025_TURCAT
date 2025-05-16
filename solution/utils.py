@@ -357,3 +357,27 @@ def sample_negative(uid, itemnum, user_train, user_disliked, explicit_negatives,
         while neg in ts or (neg in disliked):
             neg = np.random.randint(1, itemnum + 1)
         return neg
+
+def build_cross_dataset_splits(train_dataset, eval_dataset):
+    """
+    Given two datasets (from data_partition), build splits for cross-dataset evaluation.
+    For each user in eval_dataset, use their train/valid from train_dataset (if any),
+    and their test from eval_dataset.
+    Returns: user_train, user_valid, user_test, usernum, itemnum
+    """
+    # Unpack
+    _, _, user_train_train, user_valid_train, _, usernum_train, itemnum_train = train_dataset
+    _, _, _, _, user_test_eval, usernum_eval, itemnum_eval = eval_dataset
+
+    # Build splits
+    user_train = {}
+    user_valid = {}
+    user_test = {}
+
+    for user in user_test_eval:
+        user_train[user] = user_train_train.get(user, [])
+        user_valid[user] = user_valid_train.get(user, [])
+        user_test[user] = user_test_eval[user]
+
+    # Use usernum/itemnum from training set for model compatibility
+    return user_train, user_valid, user_test, usernum_train, itemnum_train
