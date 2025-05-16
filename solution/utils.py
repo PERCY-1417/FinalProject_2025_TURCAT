@@ -217,10 +217,12 @@ def data_partition(fname, save_files=True, out_dir=None, all_in_test=False):
 
     return UserLiked, UserDisliked, user_train, user_valid, user_test, usernum, itemnum
 
-def evaluate(model, dataset, args, mode="test"):
+def evaluate(model, dataset, args, mode="test", UserLiked=None):
     """
     Evaluate model on test or validation set.
     mode: "test" or "valid"
+    If weighted_dislike or explicit_negatives is set, only use liked items as positives.
+    Else, use all test/valid items as positives.
     """
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
@@ -230,18 +232,22 @@ def evaluate(model, dataset, args, mode="test"):
     evaluated_users = 0.0
 
     users_to_evaluate = range(1, usernum + 1)
-    if usernum > 10000:  # Sample users if too many
+    if usernum > 10000:
         users_to_evaluate = random.sample(range(1, usernum + 1), 10000)
 
     if mode == "test":
-        users_to_evaluate = list(test.keys())  # Only evaluate users with test items
+        users_to_evaluate = list(test.keys())
     else:
-        users_to_evaluate = list(valid.keys())  # Only evaluate users with valid items
+        users_to_evaluate = list(valid.keys())
+
+    use_liked_only = getattr(args, "weighted_dislike", False) or getattr(args, "explicit_negatives", False)
 
     for u in users_to_evaluate:
         if mode == "test":
-            true_positive_items = test[u]
-            # For test, history is train + valid
+            if use_liked_only and UserLiked is not None:
+                true_positive_items = [item for item in test[u] if item in UserLiked.get(u, set())]
+            else:
+                true_positive_items = list(test[u])
             seq = np.zeros([args.maxlen], dtype=np.int32)
             idx = args.maxlen - 1
             for val_item in reversed(valid[u]):
@@ -256,8 +262,10 @@ def evaluate(model, dataset, args, mode="test"):
                 idx -= 1
             rated_items = set(train[u]) | set(valid[u]) | set(true_positive_items)
         else:
-            true_positive_items = valid[u]
-            # For valid, history is only train
+            if use_liked_only and UserLiked is not None:
+                true_positive_items = [item for item in valid[u] if item in UserLiked.get(u, set())]
+            else:
+                true_positive_items = list(valid[u])
             seq = np.zeros([args.maxlen], dtype=np.int32)
             idx = args.maxlen - 1
             for train_item in reversed(train[u]):
@@ -272,7 +280,7 @@ def evaluate(model, dataset, args, mode="test"):
 
         items_to_rank = list(true_positive_items)
         negative_samples = []
-        for _ in range(100):  # Number of negative samples
+        for _ in range(100):
             neg_item = np.random.randint(1, itemnum + 1)
             while neg_item in rated_items:
                 neg_item = np.random.randint(1, itemnum + 1)
@@ -336,9 +344,9 @@ def get_user_item_counts(fname):
     max_item = 0
     with open(DATA_PATH + "%s.txt" % fname, "r") as f:
         for line in f:
-            u, i = line.rstrip().split(" ")
-            u = int(u)
-            i = int(i)
+            parts = line.rstrip().split(" ")
+            u = int(parts[0])
+            i = int(parts[1])
             if u > max_user:
                 max_user = u
             if i > max_item:

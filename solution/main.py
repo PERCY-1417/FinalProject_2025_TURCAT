@@ -292,7 +292,7 @@ def main_process(args):
     elif args.inference_only:
         model.eval()
         t_test = evaluate(
-            model, (user_train, user_valid, user_test, usernum, itemnum), args
+            model, (user_train, user_valid, user_test, usernum, itemnum), args, UserLiked=UserLiked
         )  # Pass dataset_splits
         print(
             "test (NDCG@10: %.4f, P@10: %.4f, R@10: %.4f)"
@@ -476,13 +476,14 @@ def main_process(args):
                     t_test_eval = evaluate(
                         model,
                         (user_train, user_valid, user_test, usernum, itemnum),
-                        args,
+                        args, UserLiked=UserLiked
                     )
                     t_valid_eval = evaluate(
                         model,
                         (user_train, user_valid, user_test, usernum, itemnum),
                         args,
                         mode="valid",
+                        UserLiked=UserLiked,
                     )
 
                     eval_msg = (

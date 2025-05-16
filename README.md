@@ -46,7 +46,10 @@ To compute the inference only with a test dataset different than the training da
 ```shell
 python main.py --dataset='small_matrix_no_remapping' --train_dir=default --device=cpu --state_dict_path='models/big_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true --training_dataset='big_matrix'
 ```
-
+To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix using weighted_dislikes (you can also use the explicit_negatives flag)
+```shell
+python main.py --dataset='small_matrix_no_remapping' --train_dir=default --device=cpu --state_dict_path='models/big_matrix_default_explicit_negatives_with_weighted_dislike/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true --training_dataset='big_matrix' --weighted_dislike=true
+```
 ## Methodology
 
 We've explored multiple options at first:
