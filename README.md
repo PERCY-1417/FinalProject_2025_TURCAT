@@ -105,9 +105,12 @@ Below is a summary table of all the features, showing which are present in the o
 | **Feature / Functionality**                | **Original SASRec** | **Our Version** |
 |--------------------------------------------|:-------------------:|:---------------:|
 | Sequence-aware recommendation              | ✅                  | ✅              |
+| Item Embeddings                            | ✅                  | ✅              |
+| Positional Embeddings                      | ✅                  | ✅              |
 | Self-attention model (Transformer)         | ✅                  | ✅              |
-| Positional embeddings                      | ✅                  | ✅              |
+| Layer Normalization                        | ✅                  | ✅              |
 | Dropout and regularization                 | ✅                  | ✅              |
+| Basic Negative Sampling                    | ✅                  | ✅              |
 | Flexible data path                         | ❌                  | ✅              |
 | Likes/dislikes support                     | ❌                  | ✅              |
 | Explicit negative sampling                 | ❌                  | ✅              |
