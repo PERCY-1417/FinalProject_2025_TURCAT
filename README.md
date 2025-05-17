@@ -112,9 +112,9 @@ The SASRec architecture leverages the power of self-attention mechanisms for seq
 
 You can find multiple main parts in the project:
 - The EDA notebook (exploratory data analysis)
-- The prepare_data.py file which is used to prepare the data for the model (convert the raw data from KuaiRec 2.0 to the format required by SASRec)
-- The main.py file which is the entry point of the project (see commands to run at the beginning of the README), which is use in combination with model.py and utils.py
-- The benchmark_runner.py which you can use to test different configurations of the model and rank them.
+- The `prepare_data.py` file which is used to prepare the data for the model (convert the raw data from KuaiRec 2.0 to the format required by SASRec)
+- The `main.py` file which is the entry point of the project (see commands to run at the beginning of the README), which is use in combination with `model.py` and `utils.py`
+- The `benchmark_runner.py` which you can use to test different configurations of the model and rank them.
 
 ```sh
 project
