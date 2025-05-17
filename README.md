@@ -100,10 +100,14 @@ project
 ```
 ## Methodology
 
-Below is a summary table of all the features we implemented compared to the original SASRec PyTorch implementation:
+Below is a summary table of all the features, showing which are present in the original SASRec PyTorch implementation and which we added or extended for our project:
 
 | **Feature / Functionality**                | **Original SASRec** | **Our Version** |
 |--------------------------------------------|:-------------------:|:---------------:|
+| Sequence-aware recommendation              | ✅                  | ✅              |
+| Self-attention model (Transformer)         | ✅                  | ✅              |
+| Positional embeddings                      | ✅                  | ✅              |
+| Dropout and regularization                 | ✅                  | ✅              |
 | Flexible data path                        | ❌                  | ✅              |
 | Likes/dislikes support                    | ❌                  | ✅              |
 | Explicit negative sampling                | ❌                  | ✅              |
@@ -123,6 +127,8 @@ Below is a summary table of all the features we implemented compared to the orig
 | Process summary reporting                 | ❌                  | ✅              |
 | Code modularity/structure                 | Basic               | Modular         |
 | Miscellaneous utilities                   | ❌                  | ✅              |
+
+*Note: ✅ means the feature is present in that version. The original SASRec PyTorch implementation is a strong and well-designed baseline, and our work builds on top of its solid foundation by adding features for experimentation and research flexibility.*
 
 We started from the SASRec PyTorch implementation, but made substantial changes to adapt it for our project and to enable more advanced experimentation. Here is a detailed description of the main steps and improvements:
 
