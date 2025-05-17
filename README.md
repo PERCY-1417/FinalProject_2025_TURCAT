@@ -4,11 +4,19 @@
 
 Develop a recommender system that suggests short videos to users based on user preferences, interaction histories, and video content using the KuaiRec dataset. The challenge is to create a personalised and scalable recommendation engine similar to those used in platforms like TikTok or Kuaishou.
 
-You can see here the [instructions](INSTRUCTIONS.md)
+You can see here the [instructions](INSTRUCTIONS.md).
 
 ## How to Run
 
-Prepare Data 
+### Download the data
+```shell
+wget --no-check-certificate 'https://drive.usercontent.google.com/download?id=1qe5hOSBxzIuxBb1G_Ih5X-O65QElollE&export=download&confirm=t&uuid=b2002093-cc6e-4bd5-be47-9603f0b33470
+' -O KuaiRec.zip
+unzip KuaiRec.zip -d data_final_project
+rm KuaiRec.zip
+```
+
+### Prepare Data 
 
 ```
 # this step is a pre-processing step to build the data for training, converting the raw format from KuaiRec 2.0 to the format required by SASRec
@@ -17,51 +25,54 @@ Prepare Data
 python prepare_data.py small_matrix
 ```
 
-To launch the basic train
+### To launch the basic train
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20
 ```
 
-To launch the train taking the disliked into account and putting them in the negative samples
+### To launch the train taking the disliked into account and putting them in the negative samples
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20 --explicit_negatives=true
 ```
 
-To launch the train taking the disliked into account and putting them in the negative samples with an extra weight in the loss (this enables explicit_negatives)
+### To launch the train taking the disliked into account and putting them in the negative samples with an extra weight in the loss (this enables explicit_negatives by default, you do not need both flags)
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20 --weighted_dislike=true
 ```
 
-To compute the inference only on the basic model
+### To compute the inference only on the basic model
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true
 ```
 
-To generate the recommendations on the basic model. You can add a --top_n= parameter to generate the top n recommendations as you see fit (default is 10)
+### To generate the recommendations on the basic model. You can add a --top_n= parameter to generate the top n recommendations as you see fit (default is 10)
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --generate_recommendations=true
 ```
 
-To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix
+### To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix
 ```shell
 python main.py --dataset='small_matrix_no_remapping' --train_dir=default --device=cpu --state_dict_path='models/big_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true --training_dataset='big_matrix'
 ```
-To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix using weighted_dislikes (you can also use the explicit_negatives flag)
+### To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix using weighted_dislikes (you can also use the explicit_negatives flag)
 ```shell
 python main.py --dataset='small_matrix_no_remapping' --train_dir=default --device=cpu --state_dict_path='models/big_matrix_default_explicit_negatives_with_weighted_dislike/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true --training_dataset='big_matrix' --weighted_dislike=true
 ```
-## Methodology
+## Introduction
 
-We've explored multiple options at first:
-- TODO Parler de BERT
-- ALS
-- We finally decided to implement the SASRec: Self-Attentive Sequential Recommendation Arhitecture.
+When tasked with this project we firstly started doing a lot of research to try to find out what type of model we found the most interesting and had the best of performance for this type of dataset. A lot of our classmates seemed to have decided to go with content based filtering or ALS and most had not succeeded in having great results. Thus we decided to gravitate around the sequence-aware models and had a look at BERT4Rec which was very promising but also looked very complicated. We then discovered the SASRec model which seemed to only lose a bit of the performance but a lot of the complications. Then issued more research to try to understand how this model worked, if any libraries could help us and what documentation there was.
+Well, we did not find any libraries but we found some articles and some implementations that we read through. 
+The two articles we stumbled upon and which greatly helped us were
+[Contrastive Learning For Sequential Recommendation](https://medium.com/biased-algorithms/contrastive-learning-for-sequential-recommendation-f4744d75128a) and [Paper Review Self Attentive Sequential Recommendation](https://medium.com/@rohan.chaudhury.rc/paper-review-self-attentive-sequential-recommendation-a4efd2185a61)
 
-We've found a Research paper [SASRec: Self-Attentive Sequential Recommendation](https://github.com/kang205/SASRec) and a base Pytorch implementation [SASRec-pytorch](https://github.com/pmixer/SASRec.pytorch) which we are using as a base implementation for our project.
+We then found two implementations of this model,
+[SASRec: Self-Attentive Sequential Recommendation](https://github.com/kang205/SASRec) and a base Pytorch implementation [SASRec-pytorch](https://github.com/pmixer/SASRec.pytorch) which we are using as a base implementation for our project.
+
+Thus we decided to go with SASRec because it’s great at handling sequential data, which is exactly what we need for recommending short videos. Since users on platforms like Kuaishou typically watch videos in a sequence, SASRec can capture patterns in how people interact with content over time. Unlike basic methods that just look at overall user-item relationships, SASRec uses a Transformer model to focus on the order in which videos are watched, helping us predict what a user might want to watch next. It's a solid model for this kind of task, and it’s been shown to work really well for similar recommendation problems. Plus, it's efficient and scalable, making it a good fit for our project’s goals.
 
 ### Model Architecture: SASRec (Self-Attentive Sequential Recommendation)
 
-The implemented solution uses the SASRec architecture, which leverages the power of self-attention mechanisms for sequential recommendation. Key components include:
+The SASRec architecture leverages the power of self-attention mechanisms for sequential recommendation. Key components include:
 
 - **Self-Attention Layers**: Multi-head self-attention mechanism to capture complex item-item relationships
 - **Point-Wise Feed-Forward Networks**: Two-layer neural networks applied after attention layers
@@ -74,16 +85,20 @@ The implemented solution uses the SASRec architecture, which leverages the power
 You can find multiple main parts in the project:
 - The EDA notebook (exploratory data analysis)
 - The prepare_data.py file which is used to prepare the data for the model (convert the raw data from KuaiRec 2.0 to the format required by SASRec)
-- The main.py file which is the entry point of the project (see command to run at the beginning of the README), which is use in combination with model.py and utils.py
+- The main.py file which is the entry point of the project (see commands to run at the beginning of the README), which is use in combination with model.py and utils.py
+- The benchmark_runner.py which you can use to test different configurations of the model and rank them.
 
 ```sh
 project
   ├── solution
+  │   ├── benchmark_runner.py
   │   ├── EDA.ipynb
   │   ├── prepare_data.py
   │   ├── main.py
-  │   └── model.py
+  │   ├── model.py
+  │   └── utils.py
 ```
+## Methodology
 
 ## Experiments
 
