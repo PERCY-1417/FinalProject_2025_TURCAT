@@ -239,3 +239,9 @@ We are the results sorted by the best NDCG@10 score.
 
 ## Conclusion
 
+This project was about building a system to recommend short videos, using a model called SASRec. We started with a basic version and added many new features, like handling dislikes and testing our model on different datasets. We learned a lot about how these kinds of systems work and how to test them properly.
+
+Our experiments showed that our improved SASRec model works well. We're happy with the results, but there's always more to do. For example, we could try using video details (like tags) to make even better recommendations, or explore other advanced models.
+
+Overall, this was a great learning experience. We built a solid system that can be used for more research in the future.
+
