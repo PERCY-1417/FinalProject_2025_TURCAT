@@ -108,25 +108,25 @@ Below is a summary table of all the features, showing which are present in the o
 | Self-attention model (Transformer)         | ✅                  | ✅              |
 | Positional embeddings                      | ✅                  | ✅              |
 | Dropout and regularization                 | ✅                  | ✅              |
-| Flexible data path                        | ❌                  | ✅              |
-| Likes/dislikes support                    | ❌                  | ✅              |
-| Explicit negative sampling                | ❌                  | ✅              |
-| Weighted dislike loss                     | ❌                  | ✅              |
-| Cross-dataset inference                   | ❌                  | ✅              |
-| Flexible data splitting                   | ❌                  | ✅              |
-| Unified evaluation function               | ❌                  | ✅              |
-| Precision@K, Recall@K metrics             | ❌                  | ✅              |
-| Top-N recommendation generation           | ❌                  | ✅              |
-| Experiment folder structure               | Minimal             | Organized       |
-| Argument parsing (many new flags)         | Basic               | Extensive       |
-| Saving splits/logs/args                   | Minimal             | Extensive       |
-| Progress bars                             | ❌                  | ✅              |
-| Robust model loading/resume               | Basic               | Improved        |
-| Sampler support for dislikes              | ❌                  | ✅              |
-| Cross-dataset user/item count override    | ❌                  | ✅              |
-| Process summary reporting                 | ❌                  | ✅              |
-| Code modularity/structure                 | Basic               | Modular         |
-| Miscellaneous utilities                   | ❌                  | ✅              |
+| Flexible data path                         | ❌                  | ✅              |
+| Likes/dislikes support                     | ❌                  | ✅              |
+| Explicit negative sampling                 | ❌                  | ✅              |
+| Weighted dislike loss                      | ❌                  | ✅              |
+| Cross-dataset inference                    | ❌                  | ✅              |
+| Flexible data splitting                    | ❌                  | ✅              |
+| Unified evaluation function                | ❌                  | ✅              |
+| Precision@K, Recall@K metrics              | ❌                  | ✅              |
+| Top-N recommendation generation            | ❌                  | ✅              |
+| Experiment folder structure                | Minimal             | Organized       |
+| Argument parsing (many new flags)          | Basic               | Extensive       |
+| Saving splits/logs/args                    | Minimal             | Extensive       |
+| Progress bars                              | ❌                  | ✅              |
+| Robust model loading/resume                | Basic               | Improved        |
+| Sampler support for dislikes               | ❌                  | ✅              |
+| Cross-dataset user/item count override     | ❌                  | ✅              |
+| Process summary reporting                  | ❌                  | ✅              |
+| Code modularity/structure                  | Basic               | Modular         |
+| Miscellaneous utilities                    | ❌                  | ✅              |
 
 *Note: ✅ means the feature is present in that version. The original SASRec PyTorch implementation is a strong and well-designed baseline, and our work builds on top of its solid foundation by adding features for experimentation and research flexibility.*
 
@@ -135,7 +135,7 @@ We started from the SASRec PyTorch implementation, but made substantial changes 
 ### Data Preparation and Preprocessing
 
 - **Format Adaptation:**  
-  We converted the raw KuaiRec 2.0 data into the format required by SASRec, ensuring that each line represents a single user-item interaction. We also remapped user and item IDs to start from 1, as required by the model’s embedding layers. To support cross-dataset experiments, we kept both remapped and original (no_remapping) versions of the data.
+  We converted the raw KuaiRec 2.0 data into the format required by SASRec, ensuring that each line represents a single user-item interaction. We also remapped user and item IDs to start from 1, as required by the model's embedding layers. To support cross-dataset experiments, we kept both remapped and original (no_remapping) versions of the data.
 
 - **Likes/Dislikes Annotation:**  
   We introduced a "like" and "dislike" label for each interaction, based on the watch ratio. Interactions with a watch ratio above 0.7 (arbitrarily) are marked as "liked" (1), and others as "disliked" (0). This label is stored as an additional column in the data files.
@@ -182,13 +182,14 @@ Our methodology was to build a flexible, extensible, and research-oriented recom
 
 We conducted an extensive hyperparameter search with the following parameters:
 
-- Learning rates: [0.001, 0.0005]
-- Maximum sequence lengths: [50, 100]
-- Number of transformer blocks: [1, 2]
-- Dropout rates: [0.2, 0.5]
+- Learning rates: [0.0015, 0.0005]
+- Maximum sequence lengths: [150, 300]
+- Number of transformer blocks: [2, 4]
+- Dropout rates: [0.5, 0.7]
 - Hidden units: 50 (fixed)
 - Number of attention heads: 1 (fixed)
-- Training epochs: [2, 5]
+- L2 regularization: [0.0] (fixed)
+- Training epochs: [17, 20, 25]
 
 ### Evaluation Metrics
 
@@ -203,25 +204,19 @@ The model performance was evaluated using:
 
 The best performing model achieved the following metrics:
 
-- **Validation NDCG@10**: TODO
-- **Test NDCG@10**: TODO
+- **Validation NDCG@10**: 0.9874
+- **Test NDCG@10**: 0.9989
 - **Test Precision@10**: TODO
-- **Test Recall@10**: TODO
+- **Test Recall@10**: 0.0999
 
 This was achieved with the following hyperparameters:
-- Learning rate: TODO
-- Maximum sequence length: TODO
-- Number of blocks: TODO
-- Dropout rate: TODO
-- Training epochs: TODO
+- Learning rate: 0.00150
+- Maximum sequence length: 150
+- Number of blocks: 2
+- Dropout rate: 0.500
+- Training epochs: 25
 
-### Key Findings
-
-
-## Conclusions
-
-
-## Benchmark results
+### Full Benchmark Table
 
 This extensive benchmark was conducted using the `benchmark_runner.py` on the `small_matrix` dataset.
 
@@ -240,3 +235,7 @@ We are the results sorted by the best NDCG@10 score.
 | 8    | 0.00100 | 100    | 2      | 50     | 2      | 0.500   | 0.9869   | 0.9964    | 0.1976   | 0.0997    | 11.58       |
 | 9    | 0.00100 | 100    | 1      | 50     | 2      | 0.200   | 0.9872   | 0.9958    | 0.1975   | 0.0997    | 7.88        |
 | 10   | 0.00100 | 100    | 2      | 50     | 2      | 0.500   | 0.9870   | 0.9958    | 0.1973   | 0.0996    | 9.67        |
+
+
+## Conclusion
+
