@@ -100,6 +100,78 @@ project
 ```
 ## Methodology
 
+Below is a summary table of all the features we implemented compared to the original SASRec PyTorch implementation:
+
+| **Feature / Functionality**                | **Original SASRec** | **Our Version** |
+|--------------------------------------------|:-------------------:|:---------------:|
+| Flexible data path                        | ❌                  | ✅              |
+| Likes/dislikes support                    | ❌                  | ✅              |
+| Explicit negative sampling                | ❌                  | ✅              |
+| Weighted dislike loss                     | ❌                  | ✅              |
+| Cross-dataset inference                   | ❌                  | ✅              |
+| Flexible data splitting                   | ❌                  | ✅              |
+| Unified evaluation function               | ❌                  | ✅              |
+| Precision@K, Recall@K metrics             | ❌                  | ✅              |
+| Top-N recommendation generation           | ❌                  | ✅              |
+| Experiment folder structure               | Minimal             | Organized       |
+| Argument parsing (many new flags)         | Basic               | Extensive       |
+| Saving splits/logs/args                   | Minimal             | Extensive       |
+| Progress bars                             | ❌                  | ✅              |
+| Robust model loading/resume               | Basic               | Improved        |
+| Sampler support for dislikes              | ❌                  | ✅              |
+| Cross-dataset user/item count override    | ❌                  | ✅              |
+| Process summary reporting                 | ❌                  | ✅              |
+| Code modularity/structure                 | Basic               | Modular         |
+| Miscellaneous utilities                   | ❌                  | ✅              |
+
+We started from the SASRec PyTorch implementation, but made substantial changes to adapt it for our project and to enable more advanced experimentation. Here is a detailed description of the main steps and improvements:
+
+### Data Preparation and Preprocessing
+
+- **Format Adaptation:**  
+  We converted the raw KuaiRec 2.0 data into the format required by SASRec, ensuring that each line represents a single user-item interaction. We also remapped user and item IDs to start from 1, as required by the model’s embedding layers. To support cross-dataset experiments, we kept both remapped and original (no_remapping) versions of the data.
+
+- **Likes/Dislikes Annotation:**  
+  We introduced a "like" and "dislike" label for each interaction, based on the watch ratio. Interactions with a watch ratio above 0.7 (arbitrarily) are marked as "liked" (1), and others as "disliked" (0). This label is stored as an additional column in the data files.
+
+- **Flexible Data Splitting:**  
+  Our code allows for flexible splitting of the data into training, validation, and test sets. We can easily adjust the number of validation and test items per user, and can place all interactions in the test set for cross-dataset evaluation.
+
+### Model Pipeline Enhancements
+
+- **Explicit Negative Sampling:**  
+  We added support for explicit negative sampling, where disliked items can be used as negative samples during training. This allows the model to learn not just from what users like, but also from what they dislike.
+
+- **Weighted Dislike Loss:**  
+  To further emphasize the importance of dislikes, we implemented a weighted loss function. Disliked items used as negatives can be upweighted, making the model penalize recommendations of disliked content more strongly.
+
+- **Cross-Dataset Inference:**  
+  We enabled training on one dataset and evaluating on another. This is useful for simulating real-world scenarios where user/item distributions change over time or between platforms. Our pipeline ensures user histories and test sets are constructed correctly for this setting.
+
+- **Toggleable Features:**  
+  All major features (like/dislike handling, explicit negatives, weighted loss, etc.) can be toggled on or off via command-line arguments, making the system highly configurable for different experiments.
+
+### Evaluation and Experiment Management
+
+- **Unified and Extended Evaluation:**  
+  We unified the evaluation logic for validation and test sets, and extended it to support multiple metrics: NDCG@K, Precision@K, and Recall@K. This gives a more complete picture of model performance, especially for top-N recommendation tasks.
+
+- **Top-N Recommendation Generation:**  
+  The system can generate and save the top-N recommendations for each user, which is useful for qualitative analysis and for downstream applications.
+
+- **Experiment Organization and Logging:**  
+  All experiment outputs—including arguments, logs, and data splits—are saved in organized folders under a `models/` directory. This ensures reproducibility and makes it easy to track different runs.
+
+- **Progress and Reporting:**  
+  We added progress bars for training and evaluation, and print detailed process summaries at the end of each run, including metrics and any errors encountered.
+
+- **Robustness and Modularity:**  
+  The codebase is modular, making it easy to add new features or run large-scale hyperparameter searches. Model loading and checkpointing are robust, so experiments can be resumed or reproduced reliably.
+
+### Summary
+
+Our methodology was to build a flexible, extensible, and research-oriented recommendation system. We started from a strong SASRec baseline and extended it with features specifically tailored to the unique challenges of short video recommendation, such as handling dislikes, supporting cross-dataset evaluation, and enabling detailed experiment tracking and analysis. This approach allows us to conduct meaningful experiments and draw robust conclusions about model performance in realistic settings.
+
 ## Experiments
 
 We conducted an extensive hyperparameter search with the following parameters:
