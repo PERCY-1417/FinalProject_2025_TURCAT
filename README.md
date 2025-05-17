@@ -68,7 +68,7 @@ The two articles we stumbled upon and which greatly helped us were
 We then found two implementations of this model,
 [SASRec: Self-Attentive Sequential Recommendation](https://github.com/kang205/SASRec) and a base Pytorch implementation [SASRec-pytorch](https://github.com/pmixer/SASRec.pytorch) which we are using as a base implementation for our project.
 
-Thus we decided to go with SASRec because it’s great at handling sequential data, which is exactly what we need for recommending short videos. Since users on platforms like Kuaishou typically watch videos in a sequence, SASRec can capture patterns in how people interact with content over time. Unlike basic methods that just look at overall user-item relationships, SASRec uses a Transformer model to focus on the order in which videos are watched, helping us predict what a user might want to watch next. It's a solid model for this kind of task, and it’s been shown to work really well for similar recommendation problems. Plus, it's efficient and scalable, making it a good fit for our project’s goals.
+Thus we decided to go with SASRec because it's great at handling sequential data, which is exactly what we need for recommending short videos. Since users on platforms like Kuaishou typically watch videos in a sequence, SASRec can capture patterns in how people interact with content over time. Unlike basic methods that just look at overall user-item relationships, SASRec uses a Transformer model to focus on the order in which videos are watched, helping us predict what a user might want to watch next. It's a solid model for this kind of task, and it's been shown to work really well for similar recommendation problems. Plus, it's efficient and scalable, making it a good fit for our project's goals.
 
 ### Model Architecture: SASRec (Self-Attentive Sequential Recommendation)
 
@@ -217,17 +217,20 @@ This was achieved with the following hyperparameters:
 
 ## Benchmark results
 
---- Top 10 Benchmark Results (Sorted by Test NDCG) ---
-Rank | LR      | Maxlen | Blocks | Hidden | Epochs | Dropout | Val NDCG | Test NDCG | Val R@10 | Test R@10 | Duration (s)
--------------------------------------------------------------------------------------------------------------------------
-1    | 0.00150 | 150    | 2      | 50     | 25     | 0.500   | 0.9874   | 0.9989    | 0.1974   | 0.0999    | 66.25       
-2    | 0.00150 | 150    | 2      | 50     | 17     | 0.700   | 0.9879   | 0.9987    | 0.1975   | 0.0999    | 44.64       
-3    | 0.00050 | 300    | 4      | 50     | 25     | 0.700   | 0.9872   | 0.9983    | 0.1973   | 0.0998    | 252.55      
-4    | 0.00050 | 150    | 2      | 50     | 25     | 0.700   | 0.9871   | 0.9979    | 0.1976   | 0.0998    | 68.33       
-5    | 0.00100 | 50     | 2      | 50     | 2      | 0.200   | 0.9868   | 0.9974    | 0.1975   | 0.0998    | 8.09        
-6    | 0.00050 | 150    | 4      | 50     | 17     | 0.700   | 0.9879   | 0.9971    | 0.1974   | 0.0998    | 78.23       
-7    | 0.00050 | 100    | 1      | 50     | 5      | 0.500   | 0.9875   | 0.9967    | 0.1975   | 0.0997    | 11.82       
-8    | 0.00100 | 100    | 2      | 50     | 2      | 0.500   | 0.9869   | 0.9964    | 0.1976   | 0.0997    | 11.58       
-9    | 0.00100 | 100    | 1      | 50     | 2      | 0.200   | 0.9872   | 0.9958    | 0.1975   | 0.0997    | 7.88        
-10   | 0.00100 | 100    | 2      | 50     | 2      | 0.500   | 0.9870   | 0.9958    | 0.1973   | 0.0996    | 9.67        
--------------------------------------------------------------------------------------------------------------------------
+This extensive benchmark was conducted using the `benchmark_runner.py` on the `small_matrix` dataset.
+
+We are the results sorted by the best NDCG@10 score.
+
+
+| Rank | LR      | Maxlen | Blocks | Hidden | Epochs | Dropout | Val NDCG | Test NDCG | Val R@10 | Test R@10 | Duration (s)| 
+|------|---------|--------|--------|--------|--------|---------|----------|-----------|----------|-----------|-------------|
+| 1    | 0.00150 | 150    | 2      | 50     | 25     | 0.500   | 0.9874   | 0.9989    | 0.1974   | 0.0999    | 66.25       |
+| 2    | 0.00150 | 150    | 2      | 50     | 17     | 0.700   | 0.9879   | 0.9987    | 0.1975   | 0.0999    | 44.64       |
+| 3    | 0.00050 | 300    | 4      | 50     | 25     | 0.700   | 0.9872   | 0.9983    | 0.1973   | 0.0998    | 252.55      |
+| 4    | 0.00050 | 150    | 2      | 50     | 25     | 0.700   | 0.9871   | 0.9979    | 0.1976   | 0.0998    | 68.33       |
+| 5    | 0.00100 | 50     | 2      | 50     | 2      | 0.200   | 0.9868   | 0.9974    | 0.1975   | 0.0998    | 8.09        |
+| 6    | 0.00050 | 150    | 4      | 50     | 17     | 0.700   | 0.9879   | 0.9971    | 0.1974   | 0.0998    | 78.23       |
+| 7    | 0.00050 | 100    | 1      | 50     | 5      | 0.500   | 0.9875   | 0.9967    | 0.1975   | 0.0997    | 11.82       |
+| 8    | 0.00100 | 100    | 2      | 50     | 2      | 0.500   | 0.9869   | 0.9964    | 0.1976   | 0.0997    | 11.58       |
+| 9    | 0.00100 | 100    | 1      | 50     | 2      | 0.200   | 0.9872   | 0.9958    | 0.1975   | 0.0997    | 7.88        |
+| 10   | 0.00100 | 100    | 2      | 50     | 2      | 0.500   | 0.9870   | 0.9958    | 0.1973   | 0.0996    | 9.67        |
