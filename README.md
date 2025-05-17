@@ -1,5 +1,37 @@
 # Project Assignment: Short Video Recommender System (KuaiRec)
 
+## Table of Contents
+- [Objective](#objective)
+- [How to Run](#how-to-run)
+  - [Download the data](#download-the-data)
+  - [Prepare Data](#prepare-data)
+  - [To launch the basic train](#to-launch-the-basic-train)
+  - [To launch the train taking the disliked into account and putting them in the negative samples](#to-launch-the-train-taking-the-disliked-into-account-and-putting-them-in-the-negative-samples)
+  - [To launch the train taking the disliked into account and putting them in the negative samples with an extra weight in the loss](#to-launch-the-train-taking-the-disliked-into-account-and-putting-them-in-the-negative-samples-with-an-extra-weight-in-the-loss)
+  - [To compute the inference only on the basic model](#to-compute-the-inference-only-on-the-basic-model)
+  - [To generate the recommendations on the basic model](#to-generate-the-recommendations-on-the-basic-model)
+  - [To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix](#to-compute-the-inference-only-with-a-test-dataset-different-than-the-training-dataset-on-the-basic-model-trained-on-the-big-matrix)
+  - [To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix using weighted_dislikes](#to-compute-the-inference-only-with-a-test-dataset-different-than-the-training-dataset-on-the-basic-model-trained-on-the-big-matrix-using-weighted_dislikes)
+- [Introduction](#introduction)
+  - [Model Architecture: SASRec (Self-Attentive Sequential Recommendation)](#model-architecture-sasrec-self-attentive-sequential-recommendation)
+- [Project](#project)
+- [Methodology](#methodology)
+  - [Data Preparation and Preprocessing](#data-preparation-and-preprocessing)
+  - [Model Pipeline Enhancements](#model-pipeline-enhancements)
+  - [Evaluation and Experiment Management](#evaluation-and-experiment-management)
+  - [Summary](#summary)
+- [Experiments](#experiments)
+  - [1. Experimental Setup](#1-experimental-setup)
+  - [2. Evaluation Metrics](#2-evaluation-metrics)
+  - [3. Results](#3-results)
+    - [3.1. Metric Comparison](#31-metric-comparison)
+    - [3.2. Hyperparameter Search](#32-hyperparameter-search)
+    - [3.3. Best Performing Configuration](#33-best-performing-configuration)
+    - [3.4. Results for Various Model and Evaluation Setups](#34-results-for-various-model-and-evaluation-setups)
+  - [4. Key Findings](#4-key-findings)
+- [Limitations](#limitations)
+- [Conclusion](#conclusion)
+
 ## Objective
 
 Develop a recommender system that suggests short videos to users based on user preferences, interaction histories, and video content using the KuaiRec dataset. The challenge is to create a personalised and scalable recommendation engine similar to those used in platforms like TikTok or Kuaishou.
@@ -292,5 +324,5 @@ This project was both a challenging and rewarding journey into the world of reco
 
 It was particularly exciting to see how well the SASRec architecture performed, achieving remarkably high scores on our datasets and demonstrating its effectiveness for short video recommendation tasks. The process of adapting the data, experimenting with new loss functions, and analyzing the results provided valuable insights into both the strengths and limitations of modern recommender systems.
 
-Beyond the technical achievements, this project was genuinely enjoyable and engaging. It gave us the chance to get hands-on with state-of-the-art machine learning methods and apply them to a real-world problem. Seeing how each design choice affected the recommendations was both interesting and rewarding. We’re proud of what we built and hope our work will be helpful to others working on recommender systems. We’re also excited to keep learning and experimenting with even more advanced ideas in the future!
+Beyond the technical achievements, this project was genuinely enjoyable and engaging. It gave us the chance to get hands-on with state-of-the-art machine learning methods and apply them to a real-world problem. Seeing how each design choice affected the recommendations was both interesting and rewarding. We're proud of what we built and hope our work will be helpful to others working on recommender systems. We're also excited to keep learning and experimenting with even more advanced ideas in the future!
 
