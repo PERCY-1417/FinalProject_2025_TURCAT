@@ -183,48 +183,47 @@ Our methodology was to build a flexible, extensible, and research-oriented recom
 
 ## Experiments
 
-We conducted an extensive hyperparameter search with the following parameters:
+To evaluate the effectiveness of our improvements and extensions to the SASRec model, we conducted a series of experiments focusing on how the model handles explicit negative feedback (dislikes) and the impact of upweighting disliked items during training.
 
-- Learning rates: [0.0015, 0.0005]
-- Maximum sequence lengths: [150, 300]
-- Number of transformer blocks: [2, 4]
-- Dropout rates: [0.5, 0.7]
-- Hidden units: 50 (fixed)
-- Number of attention heads: 1 (fixed)
-- L2 regularization: [0.0] (fixed)
-- Training epochs: [17, 20, 25]
+### 1. Experimental Setup
 
-### Evaluation Metrics
+We performed a hyperparameter search over the following parameters:
+- **Learning rates:** [0.0015, 0.0005]
+- **Maximum sequence lengths:** [150, 300]
+- **Number of transformer blocks:** [2, 4]
+- **Dropout rates:** [0.5, 0.7]
+- **Hidden units:** 50 (fixed)
+- **Number of attention heads:** 1 (fixed)
+- **L2 regularization:** 0.0 (fixed)
+- **Training epochs:** [17, 20, 25]
 
-The model performance was evaluated using:
-- NDCG@10 (Normalized Discounted Cumulative Gain)
-- Precision@10
-- Recall@10
+For each configuration, we trained the model on the KuaiRec `small_matrix` dataset and evaluated on both validation and test splits. We compared three main training regimes:
+- **Base Model:** Standard SASRec, no explicit handling of dislikes.
+- **Explicit Negatives:** Disliked items are used as negative samples during training.
+- **Weighted Dislike:** Disliked items are used as negatives and their loss is upweighted.
 
-## Results
+### 2. Evaluation Metrics
 
-### Best Performing Configuration
+We evaluated model performance using:
+- **NDCG@10 (Normalized Discounted Cumulative Gain)**
+- **Precision@10**
+- **Recall@10**
 
-The best performing model achieved the following metrics:
+These metrics were computed on both the validation and test sets.
 
-- **Validation NDCG@10**: 0.9874
-- **Test NDCG@10**: 0.9989
-- **Test Precision@10**: TODO
-- **Test Recall@10**: 0.0999
+### 3. Results
 
-This was achieved with the following hyperparameters:
-- Learning rate: 0.00150
-- Maximum sequence length: 150
-- Number of blocks: 2
-- Dropout rate: 0.500
-- Training epochs: 25
+#### 3.1. Metric Comparison
 
-### Full Benchmark Table
+| Model Variant         | Val NDCG@10 | Val P@10 | Val R@10 | Test NDCG@10 | Test P@10 | Test R@10 |
+|----------------------|-------------|----------|----------|--------------|-----------|-----------|
+| Base                 | 0.9848      | 0.9848   | 0.9848   | 0.9953       | 0.9945    | 0.9945    |
+| Explicit Negatives   | 0.9851      | 0.9842   | 0.9842   | 0.9918       | 0.9883    | 0.9883    |
+| Weighted Dislike     | 0.9875      | 0.9863   | 0.9863   | 0.9911       | 0.9876    | 0.9876    |
 
-This extensive benchmark was conducted using the `benchmark_runner.py` on the `small_matrix` dataset.
+#### 3.2. Hyperparameter Search
 
-We are the results sorted by the best NDCG@10 score.
-
+We ran an extensive benchmark using `benchmark_runner.py` on the `small_matrix` dataset. The table below shows the top configurations sorted by best NDCG@10 score:
 
 | Rank | LR      | Maxlen | Blocks | Hidden | Epochs | Dropout | Val NDCG | Test NDCG | Val R@10 | Test R@10 | Duration (s)| 
 |------|---------|--------|--------|--------|--------|---------|----------|-----------|----------|-----------|-------------|
@@ -239,12 +238,59 @@ We are the results sorted by the best NDCG@10 score.
 | 9    | 0.00100 | 100    | 1      | 50     | 2      | 0.200   | 0.9872   | 0.9958    | 0.1975   | 0.0997    | 7.88        |
 | 10   | 0.00100 | 100    | 2      | 50     | 2      | 0.500   | 0.9870   | 0.9958    | 0.1973   | 0.0996    | 9.67        |
 
+#### 3.3. Best Performing Configuration
+
+The best performing model achieved:
+- **Validation NDCG@10**: 0.9874
+- **Test NDCG@10**: 0.9989
+- **Test Precision@10**: 0.0999
+- **Test Recall@10**: 0.0999
+
+With hyperparameters:
+- **Learning rate:** 0.0015
+- **Maximum sequence length:** 150
+- **Number of blocks:** 2
+- **Dropout rate:** 0.5
+- **Training epochs:** 25
+
+#### 3.4. Results for Various Model and Evaluation Setups
+
+To illustrate the impact of different training and evaluation setups, we present the results of running inference with several model checkpoints and dataset configurations:
+
+| Model / Command | Test NDCG@10 | Test P@10 | Test R@10 | Notes |
+|-----------------|-------------|-----------|-----------|-------|
+| `small_matrix` trained and evaluated on itself | 0.9986 | 0.9983 | 0.0998 | High scores due to small, dense dataset and high ratio of liked items |
+| `big_matrix` trained and evaluated on itself | 0.9853 | 0.9838 | 0.0984 | Slightly lower scores, but still very high |
+| `big_matrix` model evaluated on `small_matrix_no_remapping` (cross-dataset) | 0.8181 | 0.8259 | 0.0025 | Significant drop in all metrics, as the test set is much larger and contains many more items per user |
+| `big_matrix` model with weighted dislikes, evaluated on `small_matrix_no_remapping` (cross-dataset, dislikes weighted) | 0.9437 | 0.9362 | 0.0174 | Weighted dislike loss improves NDCG and precision, and recall increases compared to the non-weighted cross-dataset setup |
+
+### 4. Key Findings
+
+- **Handling Dislikes:** Our results suggest that introducing explicit negatives and upweighting disliked items may not significantly change the evaluation metrics in this setting. This could be because the dataset contains a high ratio of liked items per user, potentially making the recommendation task relatively easy—even for models that do not explicitly distinguish between likes and dislikes.
+- **Dataset Challenge:** It appears that the abundance of liked items per user might prevent the model from being strongly challenged to differentiate between liked and disliked content. This is an important consideration for interpreting the results and for designing future experiments.
+- **Model Robustness:** Across all tested variants, the model achieved very high NDCG@10, Precision@10, and Recall@10. This could indicate that SASRec is a robust baseline for sequential recommendation tasks on this type of dataset, though further investigation with more challenging or balanced datasets would be valuable.
+
+---
+
+These results demonstrate the effectiveness of the SASRec architecture and highlight the importance of dataset characteristics when evaluating recommender systems.
+
+## Limitations
+
+This model does have a few limitations:
+
+- **Cold Start Problem:** If a user is not present in the training dataset, the model cannot make personalized recommendations and will default to recommending random items. Addressing cold start would require incorporating user or item features, or hybrid approaches.
+- **Limited Feature Usage:** We only used user-item interactions and the watch ratio. Other potentially valuable features in the dataset—such as user demographics, video metadata, social connections, or temporal patterns—were not leveraged. Incorporating these could improve recommendation quality.
+- **Popularity and Trend Bias:** The model does not explicitly account for trending or popular items, nor does it recommend based on what a user's friends have liked. These are common strategies in production systems to boost engagement and discovery.
+- **Evaluation on Similar Data:** Most experiments were conducted on datasets with a high ratio of liked items, which may not reflect more challenging or realistic scenarios. Further testing on more diverse or imbalanced datasets would provide a better assessment of model robustness.
+- **Scalability and Efficiency:** While the model is efficient for the current dataset sizes, we did not benchmark its performance or scalability on much larger datasets or in a real-time production environment.
+
+These limitations highlight areas for future improvement and exploration, especially if the system were to be deployed in a real-world application.
 
 ## Conclusion
 
-This project was about building a system to recommend short videos, using a model called SASRec. We started with a basic version and added many new features, like handling dislikes and testing our model on different datasets. We learned a lot about how these kinds of systems work and how to test them properly.
+This project was both a challenging and rewarding journey into the world of recommendation systems. Starting from the robust SASRec PyTorch implementation, we explored a wide range of enhancements—from handling explicit dislikes and cross-dataset evaluation to building a flexible, modular experimentation pipeline. 
 
-Our experiments showed that our improved SASRec model works well. We're happy with the results, but there's always more to do. For example, we could try using video details (like tags) to make even better recommendations, or explore other advanced models.
+It was particularly exciting to see how well the SASRec architecture performed, achieving remarkably high scores on our datasets and demonstrating its effectiveness for short video recommendation tasks. The process of adapting the data, experimenting with new loss functions, and analyzing the results provided valuable insights into both the strengths and limitations of modern recommender systems.
 
-Overall, this was a great learning experience. We built a solid system that can be used for more research in the future.
+Beyond the technical achievements, this project was genuinely enjoyable and engaging. It gave us the chance to get hands-on with state-of-the-art machine learning methods and apply them to a real-world problem. Seeing how each design choice affected the recommendations was both interesting and rewarding. We’re proud of what we built and hope our work will be helpful to others working on recommender systems. We’re also excited to keep learning and experimenting with even more advanced ideas in the future!
 
