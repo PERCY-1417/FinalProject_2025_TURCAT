@@ -245,13 +245,13 @@ if __name__ == "__main__":
     cli_parser.add_argument("--sort_metric", type=str, default='best_val_ndcg_at_10', help="Metric to sort results by (e.g., best_val_ndcg_at_10, corresponding_test_ndcg_at_10)." )
 
     # Hyperparameters for benchmark runs (if not in analyze mode)
-    cli_parser.add_argument("--benchmark_dataset_name", type=str, default="ml-1m", help="Base dataset name for benchmarking (e.g., ml-1m, beauty).")
-    cli_parser.add_argument("--learning_rates", type=float, nargs='+', default=[0.001, 0.0005])
-    cli_parser.add_argument("--max_lengths", type=int, nargs='+', default=[50, 100])
-    cli_parser.add_argument("--num_blocks", type=int, nargs='+', default=[1, 2])
+    cli_parser.add_argument("--benchmark_dataset_name", type=str, default="small_matrix", help="Base dataset name for benchmarking (e.g., small_matrix, beauty).")
+    cli_parser.add_argument("--learning_rates", type=float, nargs='+', default=[0.0015, 0.0005])
+    cli_parser.add_argument("--max_lengths", type=int, nargs='+', default=[150, 300])
+    cli_parser.add_argument("--num_blocks", type=int, nargs='+', default=[2, 4])
     cli_parser.add_argument("--hidden_units", type=int, nargs='+', default=[50])
-    cli_parser.add_argument("--num_epochs", type=int, nargs='+', default=[2, 5]) # Small for testing
-    cli_parser.add_argument("--dropout_rates", type=float, nargs='+', default=[0.2, 0.5])
+    cli_parser.add_argument("--num_epochs", type=int, nargs='+', default=[17, 20, 25]) # Small for testing
+    cli_parser.add_argument("--dropout_rates", type=float, nargs='+', default=[0.5, 0.7])
     cli_parser.add_argument("--l2_emb_values", type=float, nargs='+', default=[0.0])
     cli_parser.add_argument("--num_heads", type=int, nargs='+', default=[1])
     cli_parser.add_argument("--device", type=str, default="cpu", help="Device to run on (e.g., cpu, cuda).")
@@ -264,7 +264,7 @@ if __name__ == "__main__":
         display_results_table(processed_data, top_n=args_cli.top_n, sort_metric=args_cli.sort_metric)
     else:
         # Before running, ensure that:
-        # 1. The dataset file (e.g., "ml-1m.txt") exists in the root directory of your project,
+        # 1. The dataset file (e.g., "small_matrix.txt") exists in the root directory of your project,
         #    or adjust paths in `solution/utils.py` if it expects data elsewhere.
         # 2. You have sufficient disk space for models and logs, especially in the `models/` directory.
         # 3. The required packages (torch, numpy, etc.) are installed.
