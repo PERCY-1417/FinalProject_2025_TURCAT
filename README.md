@@ -62,45 +62,41 @@ python prepare_data.py small_matrix
 python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20
 ```
 
-### To launch the train taking the disliked into account and putting them in the negative samples
+### To launch training that includes disliked items as negative samples
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20 --explicit_negatives=true
 ```
 
-### To launch the train taking the disliked into account and putting them in the negative samples with an extra weight in the loss (this enables explicit_negatives by default, you do not need both flags)
+### To launch training with weighted disliked items as negative samples (this enables explicit_negatives by default, you do not need both flags)
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --maxlen=200 --dropout_rate=0.2 --device=cpu --num_epochs=20 --weighted_dislike=true
 ```
 
-### To compute the inference only on the basic model
+### To run inference on the basic model
 ```shell
 python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true
 ```
 
-### To generate the recommendations on the basic model. You can add a --top_n= parameter to generate the top n recommendations as you see fit (default is 10)
-```shell
-python main.py --dataset='small_matrix' --train_dir=default --device=cpu --state_dict_path='models/small_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --generate_recommendations=true
-```
-
-### To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix
+### To run inference on the basic model (trained on `big_matrix`) using a test dataset different from the training dataset (`small_matrix_no_remapping`)
 ```shell
 python main.py --dataset='small_matrix_no_remapping' --train_dir=default --device=cpu --state_dict_path='models/big_matrix_default/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true --training_dataset='big_matrix'
 ```
-### To compute the inference only with a test dataset different than the training dataset on the basic model trained on the big matrix using weighted_dislikes (you can also use the explicit_negatives flag)
+### To run inference on the basic model with weighted dislikes (trained on `big_matrix`) using a test dataset different from the training dataset (`small_matrix_no_remapping`) (you can also use the explicit_negatives flag)
 ```shell
 python main.py --dataset='small_matrix_no_remapping' --train_dir=default --device=cpu --state_dict_path='models/big_matrix_default_explicit_negatives_with_weighted_dislike/SASRec.epoch=20.lr=0.001.layer=2.head=1.hidden=50.maxlen=200.pth' --inference_only=true --training_dataset='big_matrix' --weighted_dislike=true
 ```
 ## Introduction
 
-When tasked with this project we firstly started doing a lot of research to try to find out what type of model we found the most interesting and had the best of performance for this type of dataset. A lot of our classmates seemed to have decided to go with content based filtering or ALS and most had not succeeded in having great results. Thus we decided to gravitate around the sequence-aware models and had a look at BERT4Rec which was very promising but also looked very complicated. We then discovered the SASRec model which seemed to only lose a bit of the performance but a lot of the complications. Then issued more research to try to understand how this model worked, if any libraries could help us and what documentation there was.
-Well, we did not find any libraries but we found some articles and some implementations that we read through. 
+When tasked with this project, we first started researching to find the most interesting model type that offered the best performance for this dataset. A lot of our classmates seemed to have decided to go with content based filtering or ALS and most had not achieved great results. Thus, we decided to focus on sequence-aware models and looked into BERT4Rec, which was very promising but also seemed very complicated. We then conducted more research to understand how this model worked, whether any libraries could help us, and what documentation was available.
+
+We did not find any libraries, but we found some articles and implementations that we studied.
 The two articles we stumbled upon and which greatly helped us were
 [Contrastive Learning For Sequential Recommendation](https://medium.com/biased-algorithms/contrastive-learning-for-sequential-recommendation-f4744d75128a) and [Paper Review Self Attentive Sequential Recommendation](https://medium.com/@rohan.chaudhury.rc/paper-review-self-attentive-sequential-recommendation-a4efd2185a61)
 
 We then found two implementations of this model,
-[SASRec: Self-Attentive Sequential Recommendation](https://github.com/kang205/SASRec) and a base Pytorch implementation [SASRec-pytorch](https://github.com/pmixer/SASRec.pytorch) which we are using as a base implementation for our project.
+[SASRec: Self-Attentive Sequential Recommendation](https://github.com/kang205/SASRec) and a base Pytorch implementation [SASRec-pytorch](https://github.com/pmixer/SASRec.pytorch) which we are using as the base implementation for our project.
 
-Thus we decided to go with SASRec because it's great at handling sequential data, which is exactly what we need for recommending short videos. Since users on platforms like Kuaishou typically watch videos in a sequence, SASRec can capture patterns in how people interact with content over time. Unlike basic methods that just look at overall user-item relationships, SASRec uses a Transformer model to focus on the order in which videos are watched, helping us predict what a user might want to watch next. It's a solid model for this kind of task, and it's been shown to work really well for similar recommendation problems. Plus, it's efficient and scalable, making it a good fit for our project's goals.
+Thus we decided to go with SASRec because it's great at handling sequential data, which is exactly what we need for recommending short videos. Since users on platforms like Kuaishou typically watch videos in a sequence, SASRec can capture patterns in how people interact with content over time. Unlike basic methods that just look at overall user-item relationships, SASRec uses a Transformer model to focus on the order in which videos are watched, helping us predict what a user might want to watch next. It's a solid model for this kind of task, and it's been shown to work really well for similar recommendation problems. Furthermore, it's efficient and scalable, making it a good fit for our project's goals.
 
 ### Model Architecture: SASRec (Self-Attentive Sequential Recommendation)
 
@@ -169,11 +165,11 @@ We started from the SASRec PyTorch implementation, but made substantial changes 
 
 ### Data Preparation and Preprocessing
 
-- **Format Adaptation:**  
-  We converted the raw KuaiRec 2.0 data into the format required by SASRec, ensuring that each line represents a single user-item interaction. We also remapped user and item IDs to start from 1, as required by the model's embedding layers. To support cross-dataset experiments, we kept both remapped and original (no_remapping) versions of the data.
+- **Format Adaptation:**
+  We converted the raw KuaiRec 2.0 data into the format required by SASRec, ensuring that each line represents a single user-item interaction. We also remapped user and item IDs to start from 1, as required by the model's 1-based indexing for embedding layers. To support cross-dataset experiments, we kept both remapped and original (no_remapping) versions of the data.
 
-- **Likes/Dislikes Annotation:**  
-  We introduced a "like" and "dislike" label for each interaction, based on the watch ratio. Interactions with a watch ratio above 0.7 (arbitrarily) are marked as "liked" (1), and others as "disliked" (0). This label is stored as an additional column in the data files.
+- **Likes/Dislikes Annotation:**
+  We introduced a "like" and "dislike" label for each interaction, based on the watch ratio. Interactions with a watch ratio above 0.7 (an arbitrary threshold) are marked as "liked" (1), and others as "disliked" (0). This label is stored as an additional column in the data files.
 
 - **Flexible Data Splitting:**  
   Our code allows for flexible splitting of the data into training, validation, and test sets. We can easily adjust the number of validation and test items per user, and can place all interactions in the test set for cross-dataset evaluation.
